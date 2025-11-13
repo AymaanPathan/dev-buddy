@@ -204,7 +204,7 @@ const JoinRoomPage = () => {
             <p className="text-sm text-gray-500">
               Want to create your own?{" "}
               <a
-                href="/create"
+                href="/"
                 className="text-violet-400 hover:text-violet-300 transition-colors font-medium"
               >
                 Start a new room

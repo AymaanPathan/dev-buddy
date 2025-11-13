@@ -23,7 +23,7 @@ const RoomLobbyPage = () => {
 
   useEffect(() => {
     if (!roomId || !user) {
-      navigate("/create");
+      navigate("/");
       return;
     }
 
