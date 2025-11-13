@@ -2,8 +2,6 @@ import { v4 as uuidv4 } from "uuid";
 import { Request, Response } from "express";
 import { Room } from "../../utils/types/Room.type";
 
-
-
 const rooms: Record<string, Room> = {};
 
 export const createRoom = (req: Request, res: Response) => {
@@ -14,11 +12,17 @@ export const createRoom = (req: Request, res: Response) => {
   }
 
   // Generate unique room ID
-  const roomId = uuidv4().slice(0, 6); // short ID for simplicity
+  const roomId = uuidv4().slice(0, 6);
 
   // Store room in memory
   rooms[roomId] = {
-    users: [{ name, language }],
+    users: [
+      {
+        name,
+        language,
+        socketId: "",
+      },
+    ],
     code: "",
   };
 

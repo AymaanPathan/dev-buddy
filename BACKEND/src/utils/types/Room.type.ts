@@ -1,4 +1,8 @@
 export type Room = {
-  users: { name: string; language: string }[];
+  users: {
+    socketId: string;
+    name: string;
+    language: string;
+  }[];
   code: string;
 };

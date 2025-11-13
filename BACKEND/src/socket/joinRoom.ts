@@ -20,8 +20,12 @@ export const joinRoom = (socket: Socket) => {
     // Join socket.io room
     socket.join(roomId);
 
-    // Add user
-    const user: User = { name, language, socketId: socket.id };
+    // Add user (ensure socketId is non-nullable for room users)
+    const user = { socketId: socket.id!, name, language } as {
+      socketId: string;
+      name: string;
+      language: string;
+    };
     rooms[roomId].users.push(user);
 
     // Send existing code
