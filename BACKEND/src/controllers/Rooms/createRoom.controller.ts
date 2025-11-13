@@ -27,6 +27,6 @@ export const createRoom = (req: Request, res: Response) => {
   };
 
   // Return room link
-  const roomLink = `http://localhost:5173/room/${roomId}`;
+  const roomLink = `http://localhost:5174/room/${roomId}`;
   res.json({ roomId, roomLink });
 };
