@@ -1,14 +1,13 @@
-import express, { Request, Response } from "express";
 import dotenv from "dotenv";
+dotenv.config();
+import express, { Request, Response } from "express";
 import cors from "cors";
-import { v4 as uuidv4 } from "uuid";
 import http from "http";
 import { Room } from "./utils/types/Room.type";
 import { registerSocketEvents } from "./socket";
 import routes from "./routes";
 import { connectDB } from "./utils/connectToDb";
 
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

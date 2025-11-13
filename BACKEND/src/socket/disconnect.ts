@@ -1,24 +1,39 @@
 import { Socket } from "socket.io";
-import { rooms } from "..";
+import { RoomModel } from "../schema/Room.model";
 
 export const disconnect = (socket: Socket) => {
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     console.log("User disconnected:", socket.id);
 
-    Object.keys(rooms).forEach((roomId) => {
-      const room = rooms[roomId];
-      const index = room.users.findIndex((u) => u.socketId === socket.id);
-      if (index !== -1) {
-        const [removedUser] = room.users.splice(index, 1);
+    try {
+      // Find room with this user
+      const room = await RoomModel.findOne({ "users.socketId": socket.id });
 
-        socket.to(roomId).emit("user-left", { name: removedUser.name });
-        console.log(`${removedUser.name} left room ${roomId}`);
+      if (!room) {
+        return;
       }
 
-      if (room.users.length === 0) {
-        delete rooms[roomId];
-        console.log(`Room ${roomId} deleted (empty)`);
+      // Find and remove the user
+      const userIndex = room.users.findIndex((u) => u.socketId === socket.id);
+
+      if (userIndex !== -1) {
+        const [removedUser] = room.users.splice(userIndex, 1);
+
+        // Notify others in the room
+        socket.to(room.roomId).emit("user-left", { name: removedUser.name });
+
+        console.log(`${removedUser.name} left room ${room.roomId}`);
+
+        // Save updated room or delete if empty
+        if (room.users.length === 0) {
+          await RoomModel.deleteOne({ roomId: room.roomId });
+          console.log(`Room ${room.roomId} deleted (empty)`);
+        } else {
+          await room.save();
+        }
       }
-    });
+    } catch (error) {
+      console.error("Error in disconnect:", error);
+    }
   });
 };

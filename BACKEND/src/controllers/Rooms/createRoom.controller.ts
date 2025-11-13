@@ -1,32 +1,35 @@
 import { v4 as uuidv4 } from "uuid";
 import { Request, Response } from "express";
-import { Room } from "../../utils/types/Room.type";
+import { RoomModel } from "../../schema/Room.model";
 
-const rooms: Record<string, Room> = {};
+export const createRoom = async (req: Request, res: Response) => {
+  try {
+    const { name, language } = req.body;
 
-export const createRoom = (req: Request, res: Response) => {
-  const { name, language } = req.body;
+    if (!name || !language) {
+      return res.status(400).json({ error: "Name and language are required" });
+    }
 
-  if (!name || !language) {
-    return res.status(400).json({ error: "Name and language are required" });
+    // Generate unique room ID
+    const roomId = uuidv4().slice(0, 6);
+
+    // Create room document
+    const newRoom = await RoomModel.create({
+      roomId,
+      users: [{ name, language, socketId: "" }],
+      code: "",
+    });
+
+    const roomLink = `http://localhost:5174/room/${roomId}`;
+
+    res.status(201).json({
+      success: true,
+      roomId,
+      roomLink,
+      room: newRoom,
+    });
+  } catch (error: any) {
+    console.error("Error creating room:", error);
+    res.status(500).json({ error: "Failed to create room" });
   }
-
-  // Generate unique room ID
-  const roomId = uuidv4().slice(0, 6);
-
-  // Store room in memory
-  rooms[roomId] = {
-    users: [
-      {
-        name,
-        language,
-        socketId: "",
-      },
-    ],
-    code: "",
-  };
-
-  // Return room link
-  const roomLink = `http://localhost:5174/room/${roomId}`;
-  res.json({ roomId, roomLink });
 };
