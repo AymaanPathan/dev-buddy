@@ -1,3 +1,4 @@
+// backend/socket/joinRoom.ts
 import { Socket } from "socket.io";
 import { RoomModel } from "../schema/Room.model";
 
@@ -40,11 +41,28 @@ export const joinRoom = (socket: Socket) => {
 
       await room.save();
 
-      // Send existing code to the joining user
-      socket.emit("initial-code", room.code);
+      // Get creator (first user)
+      const creatorSocketId = room.users[0]?.socketId || "";
 
-      // Notify others in the room
-      socket.to(roomId).emit("user-joined", { name, language });
+      // Broadcast updated user list to ALL users in room (including sender)
+      socket.to(roomId).emit("room-users-update", {
+        users: room.users.map((u) => ({
+          name: u.name,
+          language: u.language,
+          socketId: u.socketId,
+        })),
+        creatorSocketId,
+      });
+
+      // Also send to the user who just joined
+      socket.emit("room-users-update", {
+        users: room.users.map((u) => ({
+          name: u.name,
+          language: u.language,
+          socketId: u.socketId,
+        })),
+        creatorSocketId,
+      });
 
       console.log(`${name} joined room ${roomId}`);
     } catch (error) {

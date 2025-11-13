@@ -20,7 +20,7 @@ export const createRoom = async (req: Request, res: Response) => {
       code: "",
     });
 
-    const roomLink = `http://localhost:5174/room/${roomId}`;
+    const roomLink = `http://localhost:5173/room/${roomId}`;
 
     res.status(201).json({
       success: true,

@@ -1,8 +1,12 @@
 import axiosSetup from "../../utils/axiosSetup";
 
-export const createRoomApi = async (name: string, language: string) => {
+export const joinRoomApi = async (
+  roomId: string,
+  name: string,
+  language: string
+) => {
   try {
-    const response = await axiosSetup.post("/rooms/create-room", {
+    const response = await axiosSetup.post(`/rooms/${roomId}/join`, {
       name,
       language,
     });

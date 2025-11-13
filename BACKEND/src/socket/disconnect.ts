@@ -19,8 +19,18 @@ export const disconnect = (socket: Socket) => {
       if (userIndex !== -1) {
         const [removedUser] = room.users.splice(userIndex, 1);
 
-        // Notify others in the room
-        socket.to(room.roomId).emit("user-left", { name: removedUser.name });
+        // Get creator after removal
+        const creatorSocketId = room.users[0]?.socketId || "";
+
+        // Notify others in the room with updated user list
+        socket.to(room.roomId).emit("room-users-update", {
+          users: room.users.map((u) => ({
+            name: u.name,
+            language: u.language,
+            socketId: u.socketId,
+          })),
+          creatorSocketId,
+        });
 
         console.log(`${removedUser.name} left room ${room.roomId}`);
 
