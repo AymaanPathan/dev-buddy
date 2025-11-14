@@ -17,6 +17,7 @@ import {
   onInitialCode,
   onUserJoined,
   onUserLeft,
+  onRoomUsersList,
   removeAllListeners,
 } from "../services/socket";
 
@@ -50,13 +51,22 @@ const EditorPage = () => {
       return;
     }
 
+    console.log("🚀 EditorPage: Initializing for user", user.name);
+
     connectSocket();
 
     // Join room
     joinRoom(roomId, user.name, user.language);
 
+    // Handle initial users list
+    onRoomUsersList((usersList) => {
+      console.log("📋 Received initial users list:", usersList);
+      setUsers(usersList);
+    });
+
     // Handle initial code
     onInitialCode((initialCode) => {
+      console.log("📝 Received initial code");
       isUpdatingFromSocket.current = true;
       setCode(initialCode || "// Start coding together...\n");
     });
@@ -77,15 +87,20 @@ const EditorPage = () => {
 
     // Handle user joined
     onUserJoined((data) => {
-      setUsers((prev) => [...prev, data]);
-      console.log(`${data.name} joined (${data.language})`);
+      console.log(`👋 ${data.name} joined (${data.language})`);
+      setUsers((prev) => {
+        // Avoid duplicates
+        const exists = prev.some((u) => u.name === data.name);
+        if (exists) return prev;
+        return [...prev, data];
+      });
     });
 
     // Handle user left
     onUserLeft((data) => {
+      console.log(`👋 ${data.name} left`);
       setUsers((prev) => prev.filter((u) => u.name !== data.name));
       setCursors((prev) => prev.filter((c) => c.name !== data.name));
-      console.log(`${data.name} left`);
     });
 
     return () => {
@@ -169,7 +184,7 @@ const EditorPage = () => {
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-64 bg-[#252526] border-r border-[#3e3e42] p-4">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">
-            Active Users
+            Active Users ({users.length + 1})
           </h3>
           <div className="space-y-2">
             {/* Current user */}
@@ -183,13 +198,19 @@ const EditorPage = () => {
             {/* Other users */}
             {users.map((u, idx) => (
               <div
-                key={idx}
+                key={`${u.name}-${idx}`}
                 className="p-2 bg-[#1e1e1e] border border-[#3e3e42] rounded-lg"
               >
                 <div className="font-medium text-sm text-white">{u.name}</div>
                 <div className="text-xs text-gray-400">{u.language}</div>
               </div>
             ))}
+
+            {users.length === 0 && (
+              <div className="text-center py-4 text-gray-500 text-sm">
+                No other users yet
+              </div>
+            )}
           </div>
         </aside>
 

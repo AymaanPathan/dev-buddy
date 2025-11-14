@@ -42,6 +42,11 @@ export const getSocket = (): Socket | null => socket;
 export const joinRoom = (roomId: string, name: string, language: string) => {
   socket?.emit("join-room", { roomId, name, language });
 };
+export const onRoomUsersList = (
+  callback: (users: { name: string; language: string }[]) => void
+) => {
+  socket?.on("room-users-list", callback);
+};
 
 // === Code events ===
 export const emitCodeChange = (roomId: string, code: string) => {
