@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { Copy, Check, Users, Play, Sparkles } from "lucide-react";
-import socketService from "../services/socket";
 import type { RootState } from "../store";
+import { connectSocket, emitStartSession, getSocket, joinRoom, removeAllListeners } from "../services/socket";
 
 interface LobbyUser {
   name: string;
@@ -27,10 +27,10 @@ const RoomLobbyPage = () => {
       return;
     }
 
-    const socket = socketService.connect();
+    const socket = connectSocket();
 
     // Join room via socket
-    socketService.joinRoom(roomId, user.name, user.language);
+    joinRoom(roomId, user.name, user.language);
 
     // Listen for room users update
     socket.on(
@@ -49,7 +49,7 @@ const RoomLobbyPage = () => {
     });
 
     return () => {
-      socketService.removeAllListeners();
+      removeAllListeners();
     };
   }, [roomId, user, navigate]);
 
@@ -63,7 +63,7 @@ const RoomLobbyPage = () => {
   const startSession = () => {
     console.log("Starting session...", roomId);
     if (roomId) {
-      socketService.getSocket()?.emit("start-session", { roomId });
+      emitStartSession(roomId);
     }
     navigate(`/room/${roomId}/editor`);
   };
@@ -170,7 +170,7 @@ const RoomLobbyPage = () => {
                             Host
                           </span>
                         )}
-                        {u.socketId === socketService.getSocket()?.id && (
+                        {u.socketId === getSocket()?.id && (
                           <span className="px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs rounded">
                             You
                           </span>

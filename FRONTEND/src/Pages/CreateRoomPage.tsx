@@ -30,11 +30,15 @@ const CreateRoomPage = () => {
 
   const handleCreateRoom = async () => {
     if (!displayName || !preferredLanguage) return;
-    await dispatch(
-      createRoom({ name: displayName, language: preferredLanguage })
-    );
-    if (roomId) {
-      navigate(`/lobby/${roomId}`);
+
+    try {
+      const result = await dispatch(
+        createRoom({ name: displayName, language: preferredLanguage })
+      ).unwrap();
+
+      navigate(`/lobby/${result.roomId}`);
+    } catch (err) {
+      console.error("Failed to create room:", err);
     }
   };
 

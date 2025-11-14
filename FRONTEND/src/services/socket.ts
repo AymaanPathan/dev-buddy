@@ -1,108 +1,105 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/services/socket.ts
 import { io, Socket } from "socket.io-client";
 
 const SOCKET_URL = "http://localhost:5000";
 
-class SocketService {
-  private socket: Socket | null = null;
+let socket: Socket | null = null;
 
-  connect(): Socket {
-    if (!this.socket) {
-      this.socket = io(SOCKET_URL, {
-        transports: ["websocket"],
-        autoConnect: true,
-      });
+export const connectSocket = (): Socket => {
+  if (!socket) {
+    socket = io(SOCKET_URL, {
+      transports: ["websocket"],
+      autoConnect: true,
+    });
 
-      this.socket.on("connect", () => {
-        console.log("✅ Connected to server:", this.socket?.id);
-      });
+    socket.on("connect", () => {
+      console.log("✅ Connected to server:", socket?.id);
+    });
 
-      this.socket.on("disconnect", () => {
-        console.log("❌ Disconnected from server");
-      });
+    socket.on("disconnect", () => {
+      console.log("❌ Disconnected from server");
+    });
 
-      this.socket.on("error", (error: string) => {
-        console.error("Socket error:", error);
-      });
-    }
-
-    return this.socket;
+    socket.on("error", (error: string) => {
+      console.error("Socket error:", error);
+    });
   }
 
-  disconnect() {
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-    }
-  }
+  return socket;
+};
 
-  getSocket(): Socket | null {
-    return this.socket;
+export const disconnectSocket = () => {
+  if (socket) {
+    socket.disconnect();
+    socket = null;
   }
+};
 
-  // Room events
-  joinRoom(roomId: string, name: string, language: string) {
-    this.socket?.emit("join-room", { roomId, name, language });
-  }
+export const getSocket = (): Socket | null => socket;
 
-  // Code events
-  emitCodeChange(roomId: string, code: string) {
-    this.socket?.emit("code-change", { roomId, code });
-  }
+// === Room events ===
+export const joinRoom = (roomId: string, name: string, language: string) => {
+  socket?.emit("join-room", { roomId, name, language });
+};
 
-  onCodeUpdate(callback: (code: string) => void) {
-    this.socket?.on("code-update", callback);
-  }
+// === Code events ===
+export const emitCodeChange = (roomId: string, code: string) => {
+  socket?.emit("code-change", { roomId, code });
+};
 
-  onInitialCode(callback: (code: string) => void) {
-    this.socket?.on("initial-code", callback);
-  }
+export const onCodeUpdate = (callback: (code: string) => void) => {
+  socket?.on("code-update", callback);
+};
 
-  // Cursor events
-  emitCursorMove(
-    roomId: string,
-    cursor: { line: number; column: number },
-    name: string
-  ) {
-    this.socket?.emit("cursor-move", { roomId, cursor, name });
-  }
+export const onInitialCode = (callback: (code: string) => void) => {
+  socket?.on("initial-code", callback);
+};
 
-  onCursorUpdate(
-    callback: (data: {
-      socketId: string;
-      cursor: { line: number; column: number };
-      name: string;
-    }) => void
-  ) {
-    this.socket?.on("cursor-update", callback);
-  }
+// === Cursor events ===
+export const emitCursorMove = (
+  roomId: string,
+  cursor: { line: number; column: number },
+  name: string
+) => {
+  socket?.emit("cursor-move", { roomId, cursor, name });
+};
 
-  // User events
-  onUserJoined(callback: (data: { name: string; language: string }) => void) {
-    this.socket?.on("user-joined", callback);
-  }
+export const onCursorUpdate = (
+  callback: (data: {
+    socketId: string;
+    cursor: { line: number; column: number };
+    name: string;
+  }) => void
+) => {
+  socket?.on("cursor-update", callback);
+};
 
-  onUserLeft(callback: (data: { name: string }) => void) {
-    this.socket?.on("user-left", callback);
-  }
+// === User events ===
+export const onUserJoined = (
+  callback: (data: { name: string; language: string }) => void
+) => {
+  socket?.on("user-joined", callback);
+};
 
-  // Lobby events
-  onRoomUsersUpdate(callback: (data: any) => void) {
-    this.socket?.on("room-users-update", callback);
-  }
+export const onUserLeft = (callback: (data: { name: string }) => void) => {
+  socket?.on("user-left", callback);
+};
 
-  onSessionStarted(callback: () => void) {
-    this.socket?.on("session-started", callback);
-  }
+// === Lobby events ===
+export const onRoomUsersUpdate = (callback: (data: any) => void) => {
+  socket?.on("room-users-update", callback);
+};
 
-  emitStartSession(roomId: string) {
-    this.socket?.emit("start-session", { roomId });
-  }
+export const onSessionStarted = (callback: () => void) => {
+  socket?.on("session-started", callback);
+};
 
-  // Cleanup
-  removeAllListeners() {
-    this.socket?.removeAllListeners();
-  }
-}
+export const emitStartSession = (roomId: string) => {
+  socket?.emit("start-session", { roomId });
+};
 
-export default new SocketService();
+// === Cleanup ===
+export const removeAllListeners = () => {
+  socket?.removeAllListeners();
+};

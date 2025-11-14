@@ -1,11 +1,24 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/EditorPage.tsx
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import Editor from "@monaco-editor/react";
 import { Users, Copy, Check } from "lucide-react";
-import socketService from "../services/socket";
 import type { RootState } from "../store";
+import {
+  connectSocket,
+  disconnectSocket,
+  emitCodeChange,
+  emitCursorMove,
+  joinRoom,
+  onCodeUpdate,
+  onCursorUpdate,
+  onInitialCode,
+  onUserJoined,
+  onUserLeft,
+  removeAllListeners,
+} from "../services/socket";
 
 interface User {
   name: string;
@@ -37,25 +50,25 @@ const EditorPage = () => {
       return;
     }
 
-    const socket = socketService.connect();
+    connectSocket();
 
     // Join room
-    socketService.joinRoom(roomId, user.name, user.language);
+    joinRoom(roomId, user.name, user.language);
 
     // Handle initial code
-    socketService.onInitialCode((initialCode) => {
+    onInitialCode((initialCode) => {
       isUpdatingFromSocket.current = true;
       setCode(initialCode || "// Start coding together...\n");
     });
 
     // Handle code updates from other users
-    socketService.onCodeUpdate((updatedCode) => {
+    onCodeUpdate((updatedCode) => {
       isUpdatingFromSocket.current = true;
       setCode(updatedCode);
     });
 
     // Handle cursor updates
-    socketService.onCursorUpdate((data) => {
+    onCursorUpdate((data) => {
       setCursors((prev) => {
         const filtered = prev.filter((c) => c.socketId !== data.socketId);
         return [...filtered, data];
@@ -63,21 +76,21 @@ const EditorPage = () => {
     });
 
     // Handle user joined
-    socketService.onUserJoined((data) => {
+    onUserJoined((data) => {
       setUsers((prev) => [...prev, data]);
       console.log(`${data.name} joined (${data.language})`);
     });
 
     // Handle user left
-    socketService.onUserLeft((data) => {
+    onUserLeft((data) => {
       setUsers((prev) => prev.filter((u) => u.name !== data.name));
       setCursors((prev) => prev.filter((c) => c.name !== data.name));
       console.log(`${data.name} left`);
     });
 
     return () => {
-      socketService.removeAllListeners();
-      socketService.disconnect();
+      removeAllListeners();
+      disconnectSocket();
     };
   }, [roomId, user, navigate]);
 
@@ -90,7 +103,7 @@ const EditorPage = () => {
 
     setCode(value);
     if (roomId) {
-      socketService.emitCodeChange(roomId, value);
+      emitCodeChange(roomId, value);
     }
   };
 
@@ -99,7 +112,7 @@ const EditorPage = () => {
     if (!roomId || !user) return;
 
     const position = e.position;
-    socketService.emitCursorMove(
+    emitCursorMove(
       roomId,
       { line: position.lineNumber, column: position.column },
       user.name
