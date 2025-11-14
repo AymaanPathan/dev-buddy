@@ -41,7 +41,7 @@ const JoinRoomPage = () => {
         language: preferredLanguage,
       })
     );
-    navigate(`/lobby/${roomId}`);
+    navigate(`/lobby/${paramRoomId}`);
   };
 
   return (

@@ -42,22 +42,4 @@ export const joinRoom = async (req: Request, res: Response) => {
   }
 };
 
-export const getRoom = async (req: Request, res: Response) => {
-  try {
-    const { roomId } = req.params;
 
-    const room = await RoomModel.findOne({ roomId });
-
-    if (!room) {
-      return res.status(404).json({ error: "Room not found" });
-    }
-
-    res.status(200).json({
-      success: true,
-      room,
-    });
-  } catch (error: any) {
-    console.error("Error fetching room:", error);
-    res.status(500).json({ error: "Failed to fetch room" });
-  }
-};

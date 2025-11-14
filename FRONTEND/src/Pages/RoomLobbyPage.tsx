@@ -4,7 +4,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { Copy, Check, Users, Play, Sparkles } from "lucide-react";
 import type { RootState } from "../store";
-import { connectSocket, emitStartSession, getSocket, joinRoom, removeAllListeners } from "../services/socket";
+import {
+  connectSocket,
+  emitStartSession,
+  getSocket,
+  joinRoom,
+  removeAllListeners,
+} from "../services/socket";
 
 interface LobbyUser {
   name: string;
@@ -45,7 +51,7 @@ const RoomLobbyPage = () => {
     // Listen for session start
     socket.on("session-started", () => {
       console.log("Session started! Navigating to editor...");
-      navigate(`/editor/${roomId}`);
+      navigate(`/room/${roomId}/editor`);
     });
 
     return () => {
