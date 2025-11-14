@@ -46,12 +46,16 @@ interface RoomState {
   roomId: string | null;
   user: User | null;
   loading: boolean;
+  users: User[]; // all other users in the room
+
   error: string | null;
 }
 
 const initialState: RoomState = {
   roomId: null,
   user: null,
+  users: [],
+
   loading: false,
   error: null,
 };
@@ -63,12 +67,23 @@ const roomSlice = createSlice({
     clearRoom: (state) => {
       state.roomId = null;
       state.user = null;
+      state.users = [];
       state.error = null;
+    },
+    setUsers: (state, action: { payload: User[] }) => {
+      state.users = action.payload;
+    },
+    addUser: (state, action: { payload: User }) => {
+      // Avoid duplicates
+      const exists = state.users.some((u) => u.name === action.payload.name);
+      if (!exists) state.users.push(action.payload);
+    },
+    removeUser: (state, action: { payload: { name: string } }) => {
+      state.users = state.users.filter((u) => u.name !== action.payload.name);
     },
   },
   extraReducers: (builder) => {
     builder
-      // Create room
       .addCase(createRoom.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -77,12 +92,12 @@ const roomSlice = createSlice({
         state.loading = false;
         state.roomId = action.payload.roomId;
         state.user = action.payload.user;
+        state.users = []; // new room, no other users yet
       })
       .addCase(createRoom.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || "Failed to create room";
       })
-      // Join room
       .addCase(joinRoom.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -91,6 +106,7 @@ const roomSlice = createSlice({
         state.loading = false;
         state.roomId = action.payload.roomId;
         state.user = action.payload.user;
+        state.users = action.payload.users || []; // populate existing users
       })
       .addCase(joinRoom.rejected, (state, action) => {
         state.loading = false;
@@ -99,5 +115,5 @@ const roomSlice = createSlice({
   },
 });
 
-export const { clearRoom } = roomSlice.actions;
+export const { clearRoom, setUsers, addUser, removeUser } = roomSlice.actions;
 export default roomSlice.reducer;

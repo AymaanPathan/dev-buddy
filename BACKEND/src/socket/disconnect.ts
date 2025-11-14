@@ -9,39 +9,31 @@ export const disconnect = (socket: Socket) => {
       // Find room with this user
       const room = await RoomModel.findOne({ "users.socketId": socket.id });
 
-      if (!room) {
-        return;
-      }
+      if (!room) return;
 
-      // Find and remove the user
-      const userIndex = room.users.findIndex((u) => u.socketId === socket.id);
+      // Remove the user from the room
+      const updatedUsers = room.users.filter((u) => u.socketId !== socket.id);
 
-      if (userIndex !== -1) {
-        const [removedUser] = room.users.splice(userIndex, 1);
+      // Update room users in DB (atomic update)
+      await RoomModel.updateOne(
+        { roomId: room.roomId },
+        { users: updatedUsers }
+      );
 
-        // Get creator after removal
-        const creatorSocketId = room.users[0]?.socketId || "";
+      // Get creator after removal
+      const creatorSocketId = updatedUsers[0]?.socketId || "";
 
-        // Notify others in the room with updated user list
-        socket.to(room.roomId).emit("room-users-update", {
-          users: room.users.map((u) => ({
-            name: u.name,
-            language: u.language,
-            socketId: u.socketId,
-          })),
-          creatorSocketId,
-        });
+      // Notify remaining users
+      socket.to(room.roomId).emit("room-users-update", {
+        users: updatedUsers.map((u) => ({
+          name: u.name,
+          language: u.language,
+          socketId: u.socketId,
+        })),
+        creatorSocketId,
+      });
 
-        console.log(`${removedUser.name} left room ${room.roomId}`);
-
-        // Save updated room or delete if empty
-        if (room.users.length === 0) {
-          await RoomModel.deleteOne({ roomId: room.roomId });
-          console.log(`Room ${room.roomId} deleted (empty)`);
-        } else {
-          await room.save();
-        }
-      }
+      console.log(`User ${socket.id} left room ${room.roomId}`);
     } catch (error) {
       console.error("Error in disconnect:", error);
     }

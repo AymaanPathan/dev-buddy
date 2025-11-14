@@ -2,10 +2,10 @@
 // src/pages/EditorPage.tsx
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import Editor from "@monaco-editor/react";
 import { Users, Copy, Check } from "lucide-react";
-import type { RootState } from "../store";
+import type { RootDispatch, RootState } from "../store";
 import {
   connectSocket,
   disconnectSocket,
@@ -20,11 +20,7 @@ import {
   onRoomUsersList,
   removeAllListeners,
 } from "../services/socket";
-
-interface User {
-  name: string;
-  language: string;
-}
+import { addUser, removeUser, setUsers } from "../store/slice/roomSlice";
 
 interface Cursor {
   socketId: string;
@@ -33,12 +29,12 @@ interface Cursor {
 }
 
 const EditorPage = () => {
+  const dispatch: RootDispatch = useDispatch();
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.room);
-
+  const users = useSelector((state: RootState) => state.room.users);
   const [code, setCode] = useState("// Start coding together...\n");
-  const [users, setUsers] = useState<User[]>([]);
   const [cursors, setCursors] = useState<Cursor[]>([]);
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<any>(null);
@@ -61,7 +57,7 @@ const EditorPage = () => {
     // Handle initial users list
     onRoomUsersList((usersList) => {
       console.log("📋 Received initial users list:", usersList);
-      setUsers(usersList);
+      dispatch(setUsers(usersList));
     });
 
     // Handle initial code
@@ -88,18 +84,13 @@ const EditorPage = () => {
     // Handle user joined
     onUserJoined((data) => {
       console.log(`👋 ${data.name} joined (${data.language})`);
-      setUsers((prev) => {
-        // Avoid duplicates
-        const exists = prev.some((u) => u.name === data.name);
-        if (exists) return prev;
-        return [...prev, data];
-      });
+      dispatch(addUser(data));
     });
 
     // Handle user left
     onUserLeft((data) => {
       console.log(`👋 ${data.name} left`);
-      setUsers((prev) => prev.filter((u) => u.name !== data.name));
+      dispatch(removeUser({ name: data.name }));
       setCursors((prev) => prev.filter((c) => c.name !== data.name));
     });
 
