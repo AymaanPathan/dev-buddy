@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import type { RootDispatch, RootState } from "../store";
 import { createRoom } from "../store/slice/roomSlice";
+import { getClientId } from "../utils/client";
 
 const CreateRoomPage = () => {
   const dispatch: RootDispatch = useDispatch();
@@ -35,7 +36,15 @@ const CreateRoomPage = () => {
       const result = await dispatch(
         createRoom({ name: displayName, language: preferredLanguage })
       ).unwrap();
-
+      localStorage.setItem(
+        "lingo_user",
+        JSON.stringify({
+          name: displayName,
+          language: preferredLanguage,
+          clientId: getClientId(),
+        })
+      );
+      localStorage.setItem("lingo_room", result.roomId);
       navigate(`/lobby/${result.roomId}`);
     } catch (err) {
       console.error("Failed to create room:", err);

@@ -1,7 +1,7 @@
-import mongoose, { Schema, Document } from "mongoose";
+import { Schema, model, Document } from "mongoose";
 
 interface RoomUser {
-  userId: string;
+  clientId: string;
   name: string;
   language: string;
   socketId?: string;
@@ -18,7 +18,7 @@ interface IRoom extends Document {
 }
 
 const RoomUserSchema = new Schema<RoomUser>({
-  userId: { type: String, required: true },
+  clientId: { type: String, required: true },
   name: { type: String, required: true },
   language: { type: String, required: true },
   socketId: { type: String, default: "" },
@@ -27,7 +27,7 @@ const RoomUserSchema = new Schema<RoomUser>({
 
 const RoomSchema = new Schema<IRoom>(
   {
-    roomId: { type: String, required: true, index: true, unique: true },
+    roomId: { type: String, required: true, index: true },
     createdBy: { type: String },
     currentCode: { type: String, default: "// Start coding together...\n" },
     language: { type: String, default: "javascript" },
@@ -36,4 +36,4 @@ const RoomSchema = new Schema<IRoom>(
   { timestamps: true }
 );
 
-export const RoomModel = mongoose.model<IRoom>("Room", RoomSchema);
+export const RoomModel = model<IRoom>("Room", RoomSchema);

@@ -37,6 +37,7 @@ export const joinRoom = createAsyncThunk<
 });
 
 interface User {
+  clientId: string;
   name: string;
   language: string;
   socketId?: string;
@@ -46,8 +47,7 @@ interface RoomState {
   roomId: string | null;
   user: User | null;
   loading: boolean;
-  users: User[]; // all other users in the room
-
+  users: User[];
   error: string | null;
 }
 
@@ -55,7 +55,6 @@ const initialState: RoomState = {
   roomId: null,
   user: null,
   users: [],
-
   loading: false,
   error: null,
 };
@@ -70,11 +69,19 @@ const roomSlice = createSlice({
       state.users = [];
       state.error = null;
     },
+
+    // ⭐ NEW important reducers
+    setRoom: (state, action) => {
+      state.roomId = action.payload;
+    },
+    setUser: (state, action) => {
+      state.user = action.payload;
+    },
+
     setUsers: (state, action: { payload: User[] }) => {
       state.users = action.payload;
     },
     addUser: (state, action: { payload: User }) => {
-      // Avoid duplicates
       const exists = state.users.some((u) => u.name === action.payload.name);
       if (!exists) state.users.push(action.payload);
     },
@@ -82,6 +89,7 @@ const roomSlice = createSlice({
       state.users = state.users.filter((u) => u.name !== action.payload.name);
     },
   },
+
   extraReducers: (builder) => {
     builder
       .addCase(createRoom.pending, (state) => {
@@ -92,12 +100,13 @@ const roomSlice = createSlice({
         state.loading = false;
         state.roomId = action.payload.roomId;
         state.user = action.payload.user;
-        state.users = []; // new room, no other users yet
+        state.users = [];
       })
       .addCase(createRoom.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message || "Failed to create room";
       })
+
       .addCase(joinRoom.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -106,7 +115,7 @@ const roomSlice = createSlice({
         state.loading = false;
         state.roomId = action.payload.roomId;
         state.user = action.payload.user;
-        state.users = action.payload.users || []; // populate existing users
+        state.users = action.payload.users || [];
       })
       .addCase(joinRoom.rejected, (state, action) => {
         state.loading = false;
@@ -115,5 +124,13 @@ const roomSlice = createSlice({
   },
 });
 
-export const { clearRoom, setUsers, addUser, removeUser } = roomSlice.actions;
+export const {
+  clearRoom,
+  setUsers,
+  addUser,
+  removeUser,
+  setUser, // ⭐ needed for restore
+  setRoom, // ⭐ needed for restore
+} = roomSlice.actions;
+
 export default roomSlice.reducer;

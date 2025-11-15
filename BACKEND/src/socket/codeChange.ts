@@ -1,32 +1,27 @@
 import { Socket } from "socket.io";
 import { RoomModel } from "../schema/Room.model";
 
-interface CodeChangePayload {
-  roomId: string;
-  code: string;
-}
-
 export const codeChange = (socket: Socket) => {
-  socket.on("code-change", async (payload: CodeChangePayload) => {
-    const { roomId, code } = payload;
-
-    try {
-      // Update code in MongoDB
-      const room = await RoomModel.findOneAndUpdate(
+  socket.on(
+    "code-change",
+    async ({
+      roomId,
+      code,
+      language,
+    }: {
+      roomId: string;
+      code: string;
+      language?: string;
+    }) => {
+      if (!roomId) return;
+      // broadcast to others
+      socket.to(roomId).emit("code-update", { code, language });
+      // persist to DB
+      await RoomModel.findOneAndUpdate(
         { roomId },
-        { code },
-        { new: true } // Return updated document
+        { currentCode: code, updatedAt: new Date() },
+        { upsert: true }
       );
-
-      if (!room) {
-        console.error(`Room ${roomId} not found`);
-        return;
-      }
-
-      // Broadcast to all other users in the room
-      socket.to(roomId).emit("code-update", code);
-    } catch (error) {
-      console.error("Error in codeChange:", error);
     }
-  });
+  );
 };

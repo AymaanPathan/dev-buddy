@@ -4,39 +4,25 @@ import { RoomModel } from "../../schema/Room.model";
 import { UserModel } from "../../schema/User.model";
 
 export const createRoom = async (req: Request, res: Response) => {
-  try {
-    const { name, language } = req.body;
+  const { name, language, clientId } = req.body;
+  if (!name || !language || !clientId)
+    return res.status(400).json({ error: "name, language, clientId required" });
 
-    if (!name || !language) {
-      return res.status(400).json({ error: "Name and language are required" });
-    }
+  const roomId = uuidv4().slice(0, 6);
 
-    // Generate unique room ID
-    const roomId = uuidv4().slice(0, 6);
+  const room = await RoomModel.create({
+    roomId,
+    createdBy: name,
+    language,
+    currentCode: "// Start coding together...\n",
+    users: [{ clientId, name, language, socketId: "", isActive: false }],
+  });
 
-    // Create room document
-    const room = await RoomModel.create({
-      roomId,
-      createdBy: name,
-      language,
-      currentCode: "// Start coding together...\n",
-      users: [
-        { userId: uuidv4(), name, language, socketId: "", isActive: false },
-      ],
-    });
+  await UserModel.updateOne(
+    { clientId },
+    { clientId, name, language, currentRoomId: roomId },
+    { upsert: true }
+  );
 
-    await UserModel.updateOne({ name }, { name, language }, { upsert: true });
-
-    const roomLink = `http://localhost:5173/room/${roomId}`;
-
-    res.status(201).json({
-      success: true,
-      roomId,
-      roomLink,
-      room,
-    });
-  } catch (error: any) {
-    console.error("Error creating room:", error);
-    res.status(500).json({ error: "Failed to create room" });
-  }
+  res.status(201).json({ success: true, roomId, room });
 };

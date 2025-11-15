@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/pages/RoomLobbyPage.tsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -36,17 +37,22 @@ const RoomLobbyPage = () => {
     const socket = connectSocket();
 
     // Join room via socket
-    joinRoom(roomId, user.name, user.language);
+    joinRoom(roomId, user.name, user.language, user.clientId);
 
     // Listen for room users update
-    socket.on(
-      "room-users-update",
-      (data: { users: LobbyUser[]; creatorSocketId: string }) => {
-        console.log("Users updated:", data.users);
-        setUsers(data.users);
-        setIsCreator(data.creatorSocketId === socket.id);
-      }
-    );
+    socket.on("room-users-list", (data: any) => {
+      console.log("Users updated:", data); // log actual payload
+      const usersArray = Array.isArray(data) ? data : [data];
+
+      const mappedUsers: LobbyUser[] = usersArray.map((u, idx) => ({
+        name: u.name,
+        language: u.language,
+        socketId: u.socketId || u.clientId || `user-${idx}`, // fallback
+      }));
+
+      setUsers(mappedUsers);
+      setIsCreator(mappedUsers[0]?.socketId === getSocket()?.id);
+    });
 
     // Listen for session start
     socket.on("session-started", () => {
@@ -73,6 +79,10 @@ const RoomLobbyPage = () => {
     }
     navigate(`/room/${roomId}/editor`);
   };
+
+  useEffect(() => {
+    console.log("Is users:", users);
+  }, [users]);
 
   return (
     <div className="min-h-screen bg-[#191919] text-gray-100">
@@ -126,42 +136,42 @@ const RoomLobbyPage = () => {
             <div className="flex items-center gap-2 mb-4">
               <Users className="w-5 h-5 text-violet-400" />
               <h3 className="text-lg font-semibold">
-                Active Members ({users.length})
+                Active Members ({users?.length})
               </h3>
             </div>
 
             <div className="space-y-3">
-              {users.map((u, idx) => (
+              {users?.map((u, idx) => (
                 <div
-                  key={u.socketId}
+                  key={u.socketId || `user-${idx}`}
                   className="flex items-center justify-between p-4 bg-[#141414] border border-white/[0.06] rounded-xl"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-600 rounded-full flex items-center justify-center text-white font-semibold">
-                      {u.name.charAt(0).toUpperCase()}
+                      {u?.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <div className="font-medium text-white flex items-center gap-2">
-                        {u.name}
+                        {u?.name}
                         {idx === 0 && (
                           <span className="px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-xs rounded">
                             Host
                           </span>
                         )}
-                        {u.socketId === getSocket()?.id && (
+                        {u?.socketId === getSocket()?.id && (
                           <span className="px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs rounded">
                             You
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-400">{u.language}</div>
+                      <div className="text-sm text-gray-400">{u?.language}</div>
                     </div>
                   </div>
                   <div className="w-2 h-2 bg-green-400 rounded-full" />
                 </div>
               ))}
 
-              {users.length === 0 && (
+              {users?.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   <Users className="w-12 h-12 mx-auto mb-2 opacity-30" />
                   <p>No users yet. Share the link to invite collaborators.</p>
@@ -174,7 +184,7 @@ const RoomLobbyPage = () => {
           {isCreator && (
             <button
               onClick={startSession}
-              disabled={users.length < 1}
+              disabled={users?.length < 1}
               className="w-full px-6 py-4 bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 flex items-center justify-center gap-3 shadow-lg shadow-blue-500/25 disabled:shadow-none text-lg"
             >
               <Play className="w-5 h-5" />

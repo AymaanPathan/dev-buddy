@@ -1,41 +1,29 @@
 import { Socket } from "socket.io";
+import { UserModel } from "../schema/User.model";
 import { RoomModel } from "../schema/Room.model";
 
 export const disconnect = (socket: Socket) => {
   socket.on("disconnect", async () => {
-    console.log("User disconnected:", socket.id);
+    await RoomModel.updateMany(
+      { "users.socketId": socket.id },
+      { $set: { "users.$.isActive": false, "users.$.socketId": "" } }
+    );
 
-    try {
-      // Find room with this user
-      const room = await RoomModel.findOne({ "users.socketId": socket.id });
+    const user = await UserModel.findOneAndUpdate(
+      { socketId: socket.id } as any,
+      { lastSeen: new Date() } as any
+    );
 
-      if (!room) return;
-
-      // Remove the user from the room
-      const updatedUsers = room.users.filter((u) => u.socketId !== socket.id);
-
-      // Update room users in DB (atomic update)
-      await RoomModel.updateOne(
-        { roomId: room.roomId },
-        { users: updatedUsers }
-      );
-
-      // Get creator after removal
-      const creatorSocketId = updatedUsers[0]?.socketId || "";
-
-      // Notify remaining users
-      socket.to(room.roomId).emit("room-users-update", {
-        users: updatedUsers.map((u) => ({
-          name: u.name,
-          language: u.language,
-          socketId: u.socketId,
-        })),
-        creatorSocketId,
-      });
-
-      console.log(`User ${socket.id} left room ${room.roomId}`);
-    } catch (error) {
-      console.error("Error in disconnect:", error);
+    const rooms = await RoomModel.find({ "users.socketId": socket.id });
+    for (const room of rooms) {
+      const users = room.users.map((u) => ({
+        name: u.name,
+        language: u.language,
+        clientId: u.clientId,
+        isActive: u.isActive,
+      }));
+      // emit to room
+      socket.to(room.roomId).emit("room-users-update", users);
     }
   });
 };

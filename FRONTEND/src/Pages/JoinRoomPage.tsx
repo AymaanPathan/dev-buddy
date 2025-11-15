@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import type { RootDispatch, RootState } from "../store";
 import { joinRoom } from "../store/slice/roomSlice";
 import { useParams } from "react-router-dom";
+import { getClientId } from "../utils/client";
 
 const JoinRoomPage = () => {
   const dispatch: RootDispatch = useDispatch();
@@ -39,6 +40,15 @@ const JoinRoomPage = () => {
         language: preferredLanguage,
       })
     );
+    localStorage.setItem(
+      "lingo_user",
+      JSON.stringify({
+        name: displayName,
+        language: preferredLanguage,
+        clientId: getClientId(),
+      })
+    );
+    localStorage.setItem("lingo_room", paramRoomId);
     navigate(`/lobby/${paramRoomId}`);
   };
 

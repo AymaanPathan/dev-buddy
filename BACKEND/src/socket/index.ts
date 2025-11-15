@@ -4,7 +4,7 @@ import { codeChange } from "./codeChange";
 import { cursorMove } from "./cursorMove";
 import { disconnect } from "./disconnect";
 import { startSession } from "./startSession";
-import { translateComments } from "./translateComments";
+import { registerTranslateHandler } from "./translateBatch";
 
 export const registerSocketEvents = (io: Server) => {
   io.on("connection", (socket: Socket) => {
@@ -14,7 +14,7 @@ export const registerSocketEvents = (io: Server) => {
     startSession(socket);
     codeChange(socket);
     cursorMove(socket);
-    translateComments(socket);
+    registerTranslateHandler(io, socket);
 
     disconnect(socket);
   });

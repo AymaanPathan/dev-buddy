@@ -15,7 +15,6 @@ import {
   emitCursorMove,
   joinRoom,
   onCodeUpdate,
-  onCursorUpdate,
   onInitialCode,
   onUserJoined,
   onUserLeft,
@@ -29,7 +28,13 @@ import {
   onTranslateError,
   removeTranslationListeners,
 } from "../services/socket";
-import { addUser, removeUser, setUsers } from "../store/slice/roomSlice";
+import {
+  addUser,
+  removeUser,
+  setRoom,
+  setUser,
+  setUsers,
+} from "../store/slice/roomSlice";
 import { extractComments, type Comment } from "../utils/commentDetector";
 import { getLanguageCode } from "../utils/getLanCode.utils";
 import { Header } from "../components/EditorPageComponents/Header";
@@ -67,82 +72,67 @@ const EditorPage = () => {
 
   // Initialize socket connection
   useEffect(() => {
-    if (!roomId || !user) {
+    let finalUser = user;
+    let finalRoomId = roomId;
+
+    // 1) Restore user + room from localStorage before redirect
+    const savedUser = localStorage.getItem("lingo_user");
+    const savedRoom = localStorage.getItem("lingo_room");
+
+    if (!finalUser && savedUser) {
+      finalUser = JSON.parse(savedUser);
+      dispatch(setUser(finalUser));
+    }
+
+    if (!finalRoomId && savedRoom) {
+      finalRoomId = savedRoom;
+      dispatch(setRoom(finalRoomId));
+    }
+
+    // After restoring, if still missing something → redirect home
+    if (!finalUser || !finalRoomId) {
       navigate("/");
       return;
     }
 
-    console.log("🚀 EditorPage: Initializing for user", user.name);
+    console.log("🚀 Restored session:", finalUser.name);
 
+    // 2) Load cached code only for this room
+    const cached = localStorage.getItem(`lingo_code_${finalRoomId}`);
+    if (cached) setCode(cached);
+
+    // 3) Connect socket ONCE
     connectSocket();
 
-    // Join room
-    joinRoom(roomId, user.name, user.language);
+    // 4) Join room ONCE (using restored session)
+    joinRoom(
+      finalRoomId,
+      finalUser.name,
+      finalUser.language,
+      finalUser.clientId
+    );
 
-    // Handle initial users list
-    onRoomUsersList((usersList) => {
-      console.log("📋 Received initial users list:", usersList);
-      dispatch(setUsers(usersList));
-    });
-
-    // Handle initial code
-    onInitialCode((initialCode) => {
-      console.log("📝 Received initial code");
+    // 5) All your socket listeners...
+    onRoomUsersList((list) => dispatch(setUsers(list)));
+    onInitialCode((initial) => {
       isUpdatingFromSocket.current = true;
-      setCode(initialCode || "// Start coding together...\n");
+      setCode(initial || "// Start coding together...\n");
     });
 
-    // Handle code updates from other users
-    onCodeUpdate(async (rawData: any) => {
+    onCodeUpdate((data) => {
       isUpdatingFromSocket.current = true;
-
-      const data =
-        typeof rawData === "string"
-          ? { code: rawData, language: "javascript" }
-          : rawData;
-
-      setCode(data.code);
+      setCode(typeof data === "string" ? data : data.code);
     });
 
-    onCursorUpdate((data) => {
-      const mySocketId = getSocketId();
+    // ... other listeners (cursor, user joined, left)
 
-      if (data.socketId === mySocketId) {
-        return;
-      }
-
-      setCursors((prev) => {
-        const filtered = prev.filter((c) => c.socketId !== data.socketId);
-        return [...filtered, data];
-      });
-
-      setTimeout(() => {
-        setCursors((prev) => prev.filter((c) => c.socketId !== data.socketId));
-      }, 5000);
-    });
-
-    // Handle user joined
-    onUserJoined((data) => {
-      console.log(`👋 ${data.name} joined (${data.language})`);
-      dispatch(addUser(data));
-    });
-
-    // Handle user left
-    onUserLeft((data) => {
-      console.log(`👋 ${data.name} left`);
-      dispatch(removeUser({ name: data.name }));
-      setCursors((prev) => prev.filter((c) => c.name !== data.name));
-    });
-
+    // Cleanup
     return () => {
       removeAllListeners();
       removeTranslationListeners();
       disconnectSocket();
-      if (translationTimeoutRef.current) {
-        clearTimeout(translationTimeoutRef.current);
-      }
     };
-  }, [roomId, user, navigate, dispatch]);
+  }, [roomId, user, dispatch, navigate]);
 
   // Set up real-time translation listeners
   useEffect(() => {
@@ -221,7 +211,13 @@ const EditorPage = () => {
 
       // Emit translation request via Socket.IO
       if (roomId) {
-        emitTranslateBatch(commentTexts, targetLang, "auto", roomId);
+        emitTranslateBatch(
+          commentTexts,
+          targetLang,
+          "auto",
+          roomId,
+          user?.clientId
+        );
       }
     }, 1000); // Wait 1 second after user stops typing
   };
@@ -232,6 +228,7 @@ const EditorPage = () => {
       isUpdatingFromSocket.current = false;
       return;
     }
+    localStorage.setItem(`lingo_code_${roomId}`, value || "");
 
     setCode(value);
     if (roomId && user) {

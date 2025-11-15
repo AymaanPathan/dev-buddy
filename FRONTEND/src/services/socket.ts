@@ -39,9 +39,15 @@ export const disconnectSocket = () => {
 export const getSocket = (): Socket | null => socket;
 
 // === Room events ===
-export const joinRoom = (roomId: string, name: string, language: string) => {
-  socket?.emit("join-room", { roomId, name, language });
+export const joinRoom = (
+  roomId: string,
+  name: string,
+  language: string,
+  clientId?: string
+) => {
+  socket?.emit("join-room", { roomId, name, language, clientId });
 };
+
 export const onRoomUsersList = (
   callback: (users: { name: string; language: string }[]) => void
 ) => {
@@ -112,17 +118,21 @@ export const removeAllListeners = () => {
   socket?.removeAllListeners();
 };
 export const getSocketId = () => socket?.id;
+
+
 export const emitTranslateBatch = (
   texts: string[],
   targetLanguage: string,
   sourceLanguage: string = "auto",
-  roomId: string
+  roomId: string,
+  clientId?: string
 ) => {
   socket?.emit("translate:batch", {
     texts,
     targetLanguage,
     sourceLanguage,
     roomId,
+    clientId, // pass clientId
   });
 };
 
