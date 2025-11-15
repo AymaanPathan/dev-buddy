@@ -49,8 +49,12 @@ export const onRoomUsersList = (
 };
 
 // === Code events ===
-export const emitCodeChange = (roomId: string, code: string) => {
-  socket?.emit("code-change", { roomId, code });
+export const emitCodeChange = (
+  roomId: string,
+  code: string,
+  language: string
+) => {
+  socket?.emit("code-change", { roomId, code, language });
 };
 
 export const onCodeUpdate = (callback: (code: string) => void) => {

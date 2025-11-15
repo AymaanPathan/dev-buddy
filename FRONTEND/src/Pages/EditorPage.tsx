@@ -88,14 +88,50 @@ const EditorPage = () => {
     });
 
     // Handle code updates from other users
-    onCodeUpdate((updatedCode) => {
+    onCodeUpdate(async (rawData: any) => {
       isUpdatingFromSocket.current = true;
-      setCode(updatedCode);
 
-      // Re-detect comments when code changes
-      if (showTranslations) {
-        handleDetectAndTranslate(updatedCode);
+      // onCodeUpdate may provide either a string (code) or an object { code, language }
+      const data =
+        typeof rawData === "string"
+          ? { code: rawData, language: "javascript" }
+          : rawData;
+
+      let updatedCode = data.code;
+
+      // Extract comments
+      const comments = extractComments(updatedCode, "javascript"); // or detect dynamically
+
+      if (comments.length > 0) {
+        try {
+          const targetLang = getLanguageCode(user?.language || "javascript");
+
+          const results = await dispatch(
+            translateBatch({
+              texts: comments.map((c) => c.text),
+              targetLanguage: targetLang,
+              sourceLanguage: "auto",
+            })
+          ).unwrap();
+
+          const translationMap = new Map<number, string>();
+          comments.forEach((c, i) => {
+            if (results[i].success)
+              translationMap.set(c.line, results[i].translatedText);
+          });
+
+          updatedCode = replaceCommentsWithTranslations(
+            updatedCode,
+            comments,
+            translationMap,
+            "javascript"
+          );
+        } catch (err) {
+          console.error("Auto translation failed:", err);
+        }
       }
+
+      setCode(updatedCode);
     });
 
     onCursorUpdate((data) => {
@@ -144,8 +180,8 @@ const EditorPage = () => {
     }
 
     setCode(value);
-    if (roomId) {
-      emitCodeChange(roomId, value);
+    if (roomId && user) {
+      emitCodeChange(roomId, value, user.language);
     }
   };
 
