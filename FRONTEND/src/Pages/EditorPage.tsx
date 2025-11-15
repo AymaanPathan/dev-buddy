@@ -5,7 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import Editor from "@monaco-editor/react";
 
-import { Users, Copy, Check } from "lucide-react";
+import { Users, Copy, Check, MessageSquare } from "lucide-react";
 import type { RootDispatch, RootState } from "../store";
 import {
   connectSocket,
@@ -23,6 +23,7 @@ import {
   getSocketId,
 } from "../services/socket";
 import { addUser, removeUser, setUsers } from "../store/slice/roomSlice";
+import { extractComments, logComments } from "../utils/commentDetector";
 
 interface Cursor {
   socketId: string;
@@ -43,6 +44,7 @@ const EditorPage = () => {
   const isUpdatingFromSocket = useRef(false);
 
   console.log("📝 EditorPage rendered", cursors);
+
   // Initialize socket connection
   useEffect(() => {
     if (!roomId || !user) {
@@ -89,10 +91,10 @@ const EditorPage = () => {
         return [...filtered, data];
       });
 
-      // Auto-remove typing indicator after 1s
-      // setTimeout(() => {
-      //   setCursors((prev) => prev.filter((c) => c.socketId !== data.socketId));
-      // }, 1000);
+      // Auto-remove typing indicator after 5s
+      setTimeout(() => {
+        setCursors((prev) => prev.filter((c) => c.socketId !== data.socketId));
+      }, 5000);
     });
 
     // Handle user joined
@@ -112,7 +114,7 @@ const EditorPage = () => {
       removeAllListeners();
       disconnectSocket();
     };
-  }, [roomId, user, navigate]);
+  }, [roomId, user, navigate, dispatch]);
 
   // Handle code changes
   const handleCodeChange = (value: string | undefined) => {
@@ -149,6 +151,21 @@ const EditorPage = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Detect and log comments
+  const handleDetectComments = () => {
+    const language = user?.language || "javascript";
+    const comments = extractComments(code, language);
+
+    console.log("\n🔍 ===== COMMENT DETECTION =====");
+    console.log(`Language: ${language}`);
+    console.log(`Total Comments Found: ${comments.length}\n`);
+
+    logComments(comments);
+
+    // Also show alert with count
+    alert(`Found ${comments.length} comments! Check console for details.`);
+  };
+
   return (
     <div className="h-screen bg-[#1e1e1e] flex flex-col">
       {/* Header */}
@@ -166,6 +183,15 @@ const EditorPage = () => {
             <Users className="w-4 h-4 text-blue-400" />
             <span className="text-sm text-gray-300">{users.length + 1}</span>
           </div>
+
+          {/* Detect Comments button */}
+          <button
+            onClick={handleDetectComments}
+            className="flex items-center gap-2 px-4 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded-lg transition-colors"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Detect Comments
+          </button>
 
           {/* Copy link button */}
           <button
