@@ -1,5 +1,5 @@
 import { Router } from "express";
-import roomRoutes from "../v1/room.routes";
+import roomRoutes from "../roomRoutes/room.routes";
 
 const router = Router();
 
