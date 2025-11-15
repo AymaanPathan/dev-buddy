@@ -1,4 +1,4 @@
-import axiosSetup from "../../utils/axiosSetup";
+import axiosSetup from "../../../utils/axiosSetup";
 
 export interface TranslationResult {
   originalText: string;
@@ -13,7 +13,7 @@ export const gettranslateBatchApi = async (
   sourceLanguage: string = "auto"
 ): Promise<TranslationResult[]> => {
   try {
-    const response = await axiosSetup.post("/translate/batch", {
+    const response = await axiosSetup.post("/translate-batch", {
       texts,
       targetLanguage,
       sourceLanguage,

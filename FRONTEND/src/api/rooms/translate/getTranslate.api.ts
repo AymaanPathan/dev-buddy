@@ -1,4 +1,4 @@
-import axiosSetup from "../../utils/axiosSetup";
+import axiosSetup from "../../../utils/axiosSetup";
 
 export interface TranslationResult {
   originalText: string;
@@ -9,12 +9,14 @@ export interface TranslationResult {
 
 export const getTranslateApi = async (
   text: string,
-  targetLang: string
+  targetLanguage: string, // match backend key
+  sourceLanguage: string = "auto"
 ): Promise<TranslationResult> => {
   try {
-    const response = await axiosSetup.post("/translate/translate", {
+    const response = await axiosSetup.post("/translate", {
       text,
-      targetLang,
+      targetLanguage,
+      sourceLanguage,
     });
 
     return {

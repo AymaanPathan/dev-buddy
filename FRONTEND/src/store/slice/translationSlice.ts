@@ -3,7 +3,7 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import {
   gettranslateBatchApi,
   type TranslationResult,
-} from "../../api/translate/getBatchTranslate.api";
+} from "../../api/rooms/translate/getBatchTranslate.api";
 
 export const translateBatch = createAsyncThunk<
   TranslationResult[],
