@@ -5,7 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import Editor from "@monaco-editor/react";
 
-import { Users, Copy, Check, MessageSquare, Languages, X } from "lucide-react";
+import { Users, MessageSquare, Languages, X } from "lucide-react";
 import type { RootDispatch, RootState } from "../store";
 import {
   connectSocket,
@@ -30,6 +30,7 @@ import {
   type Comment,
 } from "../utils/commentDetector";
 import { translateBatch } from "../store/slice/translationSlice";
+import { getLanguageCode } from "../utils/getLanCode.utils";
 
 interface Cursor {
   socketId: string;
@@ -45,7 +46,6 @@ const EditorPage = () => {
   const users = useSelector((state: RootState) => state.room.users);
   const [code, setCode] = useState("// Start coding together...\n");
   const [cursors, setCursors] = useState<Cursor[]>([]);
-  const [copied, setCopied] = useState(false);
   const editorRef = useRef<any>(null);
   const isUpdatingFromSocket = useRef(false);
 
@@ -163,14 +163,6 @@ const EditorPage = () => {
     });
   };
 
-  // Copy room link
-  const copyRoomLink = () => {
-    const link = `${window.location.origin}/join/${roomId}`;
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   // Detect comments only
   const handleDetectComments = () => {
     const language = user?.language || "javascript";
@@ -206,10 +198,15 @@ const EditorPage = () => {
 
       // Extract comment texts
       const commentTexts = comments.map((c) => c.text);
+      const targetLang = getLanguageCode(user?.language || "javascript");
 
       // Translate all comments
       const results = await dispatch(
-        translateBatch({ texts: commentTexts, targetLanguage })
+        translateBatch({
+          texts: commentTexts,
+          targetLanguage: targetLang,
+          sourceLanguage: "auto",
+        })
       ).unwrap();
 
       // Create translations map
@@ -274,25 +271,6 @@ const EditorPage = () => {
             <span className="text-sm text-gray-300">{users.length + 1}</span>
           </div>
 
-          {/* Target language selector */}
-          <select
-            value={targetLanguage}
-            onChange={(e) => setTargetLanguage(e.target.value)}
-            className="px-3 py-1.5 bg-[#1e1e1e] text-gray-300 text-sm rounded-lg border border-[#3e3e42] focus:outline-none focus:border-purple-500"
-          >
-            <option value="es">Spanish</option>
-            <option value="fr">French</option>
-            <option value="de">German</option>
-            <option value="zh">Chinese</option>
-            <option value="ja">Japanese</option>
-            <option value="ko">Korean</option>
-            <option value="ar">Arabic</option>
-            <option value="hi">Hindi</option>
-            <option value="pt">Portuguese</option>
-            <option value="ru">Russian</option>
-            <option value="it">Italian</option>
-          </select>
-
           {/* Detect Comments button */}
           <button
             onClick={handleDetectComments}
@@ -301,8 +279,6 @@ const EditorPage = () => {
             <MessageSquare className="w-4 h-4" />
             Detect
           </button>
-
-          {/* Translate button */}
           <button
             onClick={() => handleDetectAndTranslate()}
             disabled={isTranslating}
@@ -310,24 +286,6 @@ const EditorPage = () => {
           >
             <Languages className="w-4 h-4" />
             {isTranslating ? "Translating..." : "Translate"}
-          </button>
-
-          {/* Copy link button */}
-          <button
-            onClick={copyRoomLink}
-            className="flex items-center gap-2 px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
-          >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4" />
-                Copied!
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4" />
-                Copy Link
-              </>
-            )}
           </button>
         </div>
       </header>
