@@ -10,12 +10,12 @@ export const registerSocketEvents = (io: Server) => {
   io.on("connection", (socket: Socket) => {
     console.log("New user connected:", socket.id);
 
-    joinRoom(socket);
+    joinRoom(io, socket); // <-- pass io here
     startSession(socket);
     codeChange(socket);
     cursorMove(socket);
     registerTranslateHandler(io, socket);
-
     disconnect(socket);
   });
 };
+

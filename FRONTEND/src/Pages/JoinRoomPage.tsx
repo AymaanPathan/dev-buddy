@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import type { RootDispatch, RootState } from "../store";
 import { joinRoom } from "../store/slice/roomSlice";
 import { useParams } from "react-router-dom";
-import { getClientId } from "../utils/client";
+import { getClientId } from "../utils/getClientId";
 
 const JoinRoomPage = () => {
   const dispatch: RootDispatch = useDispatch();

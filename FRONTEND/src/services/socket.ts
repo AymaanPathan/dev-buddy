@@ -49,7 +49,15 @@ export const joinRoom = (
 };
 
 export const onRoomUsersList = (
-  callback: (users: { name: string; language: string }[]) => void
+  callback: (
+    users: {
+      name: string;
+      language: string;
+      clientId: string;
+      socketId?: string;
+      isActive: boolean;
+    }[]
+  ) => void
 ) => {
   socket?.on("room-users-list", callback);
 };
@@ -118,7 +126,6 @@ export const removeAllListeners = () => {
   socket?.removeAllListeners();
 };
 export const getSocketId = () => socket?.id;
-
 
 export const emitTranslateBatch = (
   texts: string[],

@@ -14,6 +14,7 @@ import {
 } from "../services/socket";
 
 interface LobbyUser {
+  clientId: string | undefined;
   name: string;
   language: string;
   socketId: string;
@@ -28,6 +29,22 @@ const RoomLobbyPage = () => {
   const [copied, setCopied] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
 
+  const handleUserList = (data: any) => {
+    const usersArray = Array.isArray(data) ? data : [data];
+
+    const mappedUsers: LobbyUser[] = usersArray.map((u, idx) => ({
+      name: u.name,
+      language: u.language,
+      socketId: u.socketId || `client-${u.clientId}`,
+      clientId: u.clientId,
+    }));
+
+    setUsers(mappedUsers);
+
+    // 🔥 Use clientId instead of socketId
+    setIsCreator(mappedUsers[0]?.clientId === user?.clientId);
+  };
+
   useEffect(() => {
     if (!roomId || !user) {
       navigate("/");
@@ -40,20 +57,8 @@ const RoomLobbyPage = () => {
     joinRoom(roomId, user.name, user.language, user.clientId);
 
     // Listen for room users update
-    socket.on("room-users-list", (data: any) => {
-      console.log("Users updated:", data); // log actual payload
-      const usersArray = Array.isArray(data) ? data : [data];
-
-      const mappedUsers: LobbyUser[] = usersArray.map((u, idx) => ({
-        name: u.name,
-        language: u.language,
-        socketId: u.socketId || u.clientId || `user-${idx}`, // fallback
-      }));
-
-      setUsers(mappedUsers);
-      setIsCreator(mappedUsers[0]?.socketId === getSocket()?.id);
-    });
-
+    socket.on("room-users-list", handleUserList);
+    socket.on("room-users-update", handleUserList);
     // Listen for session start
     socket.on("session-started", () => {
       console.log("Session started! Navigating to editor...");

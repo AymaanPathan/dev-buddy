@@ -1,22 +1,22 @@
 import axiosSetup from "../../utils/axiosSetup";
 
+import { getClientId } from "../../utils/getClientId";
+
 export const joinRoomApi = async (
   roomId: string,
   name: string,
   language: string
 ) => {
   try {
-    const clientId = crypto.randomUUID();
+    const clientId = getClientId();
 
     await axiosSetup.post(`/rooms/${roomId}/join`, {
       name,
       language,
-      clientId, // REQUIRED
+      clientId,
     });
 
     const user = { name, language, clientId };
-
-    // Save to localStorage
     localStorage.setItem("lingo_user", JSON.stringify(user));
     localStorage.setItem("lingo_room", roomId);
 

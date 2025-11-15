@@ -1,8 +1,8 @@
-import { Socket } from "socket.io";
+import { Socket, Server } from "socket.io";
 import { RoomModel } from "../schema/Room.model";
 import { UserModel } from "../schema/User.model";
 
-export const joinRoom = (socket: Socket) => {
+export const joinRoom = (io: Server, socket: Socket) => {
   socket.on(
     "join-room",
     async (payload: {
@@ -12,6 +12,9 @@ export const joinRoom = (socket: Socket) => {
       clientId: string;
     }) => {
       const { roomId, name, language, clientId } = payload;
+
+      console.log(`User ${name} is attempting to join room ${roomId}`);
+
       if (!roomId || !name || !language || !clientId) {
         socket.emit("error", "join-room: missing fields");
         return;
@@ -23,8 +26,9 @@ export const joinRoom = (socket: Socket) => {
         return;
       }
 
-      // Update or insert user in room
+      // --- Update or insert user in room ---
       const userIndex = room.users.findIndex((u) => u.clientId === clientId);
+
       if (userIndex === -1) {
         room.users.push({
           clientId,
@@ -39,9 +43,10 @@ export const joinRoom = (socket: Socket) => {
         room.users[userIndex].name = name;
         room.users[userIndex].language = language;
       }
+
       await room.save();
 
-      // Update user doc
+      // --- Update UserModel ---
       await UserModel.findOneAndUpdate(
         { clientId },
         {
@@ -54,17 +59,18 @@ export const joinRoom = (socket: Socket) => {
         { upsert: true }
       );
 
-      // Join the socket.io room and send state
+      // --- Add socket to room ---
       socket.join(roomId);
 
-      // send initial code + full users list
+      // --- Send initial data to the joining user ---
       socket.emit("initial-code", room.currentCode);
       socket.emit("room-state", { code: room.currentCode, users: room.users });
 
-      // broadcast updated user list to the room
+      // --- Notify others that a user joined ---
       socket.to(roomId).emit("user-joined", { name, language, clientId });
-      // also send full user list to all for consistency
-      socket.to(roomId).emit(
+
+      // --- Broadcast updated full user list to EVERYONE (including host) ---
+      io.in(roomId).emit(
         "room-users-update",
         room.users.map((u) => ({
           name: u.name,
@@ -73,6 +79,8 @@ export const joinRoom = (socket: Socket) => {
           isActive: u.isActive,
         }))
       );
+
+      // --- Send complete user list (with socketId) only to the joining user ---
       socket.emit(
         "room-users-list",
         room.users.map((u) => ({

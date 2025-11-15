@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import type { RootDispatch, RootState } from "../store";
 import { createRoom } from "../store/slice/roomSlice";
-import { getClientId } from "../utils/client";
+import { getClientId } from "../utils/getClientId";
 
 const CreateRoomPage = () => {
   const dispatch: RootDispatch = useDispatch();

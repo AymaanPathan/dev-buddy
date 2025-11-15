@@ -1,8 +1,9 @@
 import axiosSetup from "../../utils/axiosSetup";
+import { getClientId } from "../../utils/getClientId";
 
 export const createRoomApi = async (name: string, language: string) => {
   try {
-    const clientId = crypto.randomUUID();
+    const clientId = getClientId();
 
     const response = await axiosSetup.post("/rooms/create-room", {
       name,

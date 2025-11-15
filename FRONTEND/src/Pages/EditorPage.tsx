@@ -27,6 +27,7 @@ import {
   onTranslateComplete,
   onTranslateError,
   removeTranslationListeners,
+  getSocket,
 } from "../services/socket";
 import {
   addUser,
@@ -86,6 +87,24 @@ const EditorPage = () => {
     historyCount: translationHistory.length,
   });
 
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleUsers = (list: any[]) => {
+      console.log("Editor received users:", list);
+      dispatch(setUsers(list));
+    };
+
+    socket.on("room-users-list", handleUsers);
+    socket.on("room-users-update", handleUsers);
+
+    return () => {
+      socket.off("room-users-list", handleUsers);
+      socket.off("room-users-update", handleUsers);
+    };
+  }, []);
+
   // Initialize socket connection and load history
   useEffect(() => {
     let finalUser = user;
@@ -141,8 +160,13 @@ const EditorPage = () => {
     );
 
     // 6) Socket listeners
-    onRoomUsersList((list) => dispatch(setUsers(list)));
-
+    onRoomUsersList((list) => {
+      const mapped = list.map((u: any, idx: number) => ({
+        ...u,
+        socketId: u.socketId || `client-${u.clientId}`,
+      }));
+      dispatch(setUsers(mapped));
+    });
     onInitialCode((initial) => {
       isUpdatingFromSocket.current = true;
       setCode(initial || "// Start coding together...\n");
@@ -477,11 +501,14 @@ const EditorPage = () => {
                         transition={{ delay: idx * 0.05 }}
                         className="p-3 bg-white/[0.02] border border-white/5 rounded-lg"
                       >
-                        <div className="text-xs text-gray-500 mb-2">
-                          Line {item.line + 1}
+                        <div className="text-xs text-gray-500">
+                          Original
                         </div>
                         <div className="text-sm text-gray-300 mb-1">
                           {item.originalText}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Translation
                         </div>
                         <div className="text-sm text-violet-200">
                           {item.translatedText}
