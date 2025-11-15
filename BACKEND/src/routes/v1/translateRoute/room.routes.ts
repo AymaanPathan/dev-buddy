@@ -5,6 +5,6 @@ import { batchTranslateController } from "../../../controllers/translate/batchTr
 const router = express.Router();
 
 router.post("/translate", translateController);
-router.post("/translate/batch", batchTranslateController);
+router.post("/batch", batchTranslateController);
 
 export default router;

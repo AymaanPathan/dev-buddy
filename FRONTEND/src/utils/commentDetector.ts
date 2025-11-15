@@ -13,6 +13,7 @@ export function extractComments(
   const comments: Comment[] = [];
   const lines = code.split("\n");
 
+  // Determine comment patterns based on language
   const patterns = getCommentPatterns(language);
 
   let inMultiLineComment = false;
@@ -25,10 +26,12 @@ export function extractComments(
     let col = 0;
 
     while (col < line.length) {
+      // Handle multi-line comment continuation
       if (inMultiLineComment) {
         const endIndex = line.indexOf(currentDelimiter.end, col);
 
         if (endIndex !== -1) {
+          // End of multi-line comment found
           multiLineBuffer += line.substring(col, endIndex);
 
           comments.push({
@@ -43,10 +46,12 @@ export function extractComments(
           multiLineBuffer = "";
           col = endIndex + currentDelimiter.end.length;
         } else {
+          // Continue multi-line comment to next line
           multiLineBuffer += line.substring(col) + "\n";
           break;
         }
       } else {
+        // Check for single-line comments
         let foundSingleLine = false;
         for (const delimiter of patterns.singleLine) {
           if (line.substring(col).startsWith(delimiter)) {
@@ -65,6 +70,7 @@ export function extractComments(
 
         if (foundSingleLine) break;
 
+        // Check for multi-line comment start
         let foundMultiLine = false;
         for (const delimiter of patterns.multiLine) {
           if (line.substring(col).startsWith(delimiter.start)) {
@@ -73,6 +79,7 @@ export function extractComments(
             multiLineStart = { line: lineNum, column: col };
             col += delimiter.start.length;
 
+            // Check if it ends on the same line
             const endIndex = line.indexOf(delimiter.end, col);
             if (endIndex !== -1) {
               const commentText = line.substring(col, endIndex).trim();
@@ -101,6 +108,9 @@ export function extractComments(
   return comments;
 }
 
+/**
+ * Get comment patterns based on programming language
+ */
 function getCommentPatterns(language: string) {
   const patterns: {
     [key: string]: {
@@ -148,6 +158,9 @@ function getCommentPatterns(language: string) {
   return patterns[language.toLowerCase()] || patterns.javascript;
 }
 
+/**
+ * Log detected comments to console
+ */
 export function logComments(comments: Comment[]) {
   console.group("🔍 Detected Comments");
   console.log(`Total: ${comments.length}`);
@@ -161,6 +174,47 @@ export function logComments(comments: Comment[]) {
   console.groupEnd();
 }
 
+/**
+ * Replace comments in code with translated versions
+ */
+export function replaceCommentsWithTranslations(
+  code: string,
+  comments: Comment[],
+  translations: Map<number, string>,
+  language: string = "javascript"
+): string {
+  const lines = code.split("\n");
+  const patterns = getCommentPatterns(language);
+
+  // Process comments in reverse order to maintain line positions
+  for (let i = comments.length - 1; i >= 0; i--) {
+    const comment = comments[i];
+    const translatedText = translations.get(comment.line);
+
+    if (!translatedText) continue;
+
+    const line = lines[comment.line];
+
+    if (comment.type === "single-line") {
+      const delimiter = patterns.singleLine[0] || "//";
+      lines[comment.line] =
+        line.substring(0, comment.startColumn) +
+        `${delimiter} ${translatedText}`;
+    } else {
+      const delimiter = patterns.multiLine[0] || { start: "/*", end: "*/" };
+      lines[comment.line] =
+        line.substring(0, comment.startColumn) +
+        `${delimiter.start} ${translatedText} ${delimiter.end}` +
+        line.substring(comment.endColumn);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Test function with sample code
+ */
 export function testCommentDetection() {
   console.log("\n=== Testing JavaScript ===");
   const jsCode = `

@@ -5,7 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import Editor from "@monaco-editor/react";
 
-import { Users, Copy, Check, MessageSquare } from "lucide-react";
+import { Users, Copy, Check, MessageSquare, Languages, X } from "lucide-react";
 import type { RootDispatch, RootState } from "../store";
 import {
   connectSocket,
@@ -23,7 +23,13 @@ import {
   getSocketId,
 } from "../services/socket";
 import { addUser, removeUser, setUsers } from "../store/slice/roomSlice";
-import { extractComments, logComments } from "../utils/commentDetector";
+import {
+  extractComments,
+  logComments,
+  replaceCommentsWithTranslations,
+  type Comment,
+} from "../utils/commentDetector";
+import { translateBatch } from "../store/slice/translationSlice";
 
 interface Cursor {
   socketId: string;
@@ -42,6 +48,15 @@ const EditorPage = () => {
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<any>(null);
   const isUpdatingFromSocket = useRef(false);
+
+  // Translation state
+  const [detectedComments, setDetectedComments] = useState<Comment[]>([]);
+  const [translations, setTranslations] = useState<Map<number, string>>(
+    new Map()
+  );
+  const [showTranslations, setShowTranslations] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [targetLanguage, setTargetLanguage] = useState("es");
 
   console.log("📝 EditorPage rendered", cursors);
 
@@ -76,6 +91,11 @@ const EditorPage = () => {
     onCodeUpdate((updatedCode) => {
       isUpdatingFromSocket.current = true;
       setCode(updatedCode);
+
+      // Re-detect comments when code changes
+      if (showTranslations) {
+        handleDetectAndTranslate(updatedCode);
+      }
     });
 
     onCursorUpdate((data) => {
@@ -114,7 +134,7 @@ const EditorPage = () => {
       removeAllListeners();
       disconnectSocket();
     };
-  }, [roomId, user, navigate, dispatch]);
+  }, [roomId, user, navigate, dispatch, showTranslations]);
 
   // Handle code changes
   const handleCodeChange = (value: string | undefined) => {
@@ -151,7 +171,7 @@ const EditorPage = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Detect and log comments
+  // Detect comments only
   const handleDetectComments = () => {
     const language = user?.language || "javascript";
     const comments = extractComments(code, language);
@@ -161,9 +181,79 @@ const EditorPage = () => {
     console.log(`Total Comments Found: ${comments.length}\n`);
 
     logComments(comments);
+    setDetectedComments(comments);
+  };
 
-    // Also show alert with count
-    alert(`Found ${comments.length} comments! Check console for details.`);
+  // Detect and translate comments
+  const handleDetectAndTranslate = async (codeToTranslate?: string) => {
+    const currentCode = codeToTranslate || code;
+    const language = user?.language || "javascript";
+    const comments = extractComments(currentCode, language);
+
+    setDetectedComments(comments);
+
+    if (comments.length === 0) {
+      alert("No comments found in the code!");
+      return;
+    }
+
+    setIsTranslating(true);
+
+    try {
+      console.log(
+        `🌐 Translating ${comments.length} comments to ${targetLanguage}...`
+      );
+
+      // Extract comment texts
+      const commentTexts = comments.map((c) => c.text);
+
+      // Translate all comments
+      const results = await dispatch(
+        translateBatch({ texts: commentTexts, targetLanguage })
+      ).unwrap();
+
+      // Create translations map
+      const newTranslations = new Map<number, string>();
+      comments.forEach((comment, index) => {
+        if (results[index].success) {
+          newTranslations.set(comment.line, results[index].translatedText);
+        }
+      });
+
+      setTranslations(newTranslations);
+      setShowTranslations(true);
+
+      console.log(
+        `✅ Translation complete! ${newTranslations.size} comments translated.`
+      );
+    } catch (error) {
+      console.error("Translation error:", error);
+      alert("Translation failed. Check console for details.");
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  // Apply translations to code
+  const handleApplyTranslations = () => {
+    if (translations.size === 0) return;
+
+    const language = user?.language || "javascript";
+    const translatedCode = replaceCommentsWithTranslations(
+      code,
+      detectedComments,
+      translations,
+      language
+    );
+
+    setCode(translatedCode);
+    if (roomId) {
+      emitCodeChange(roomId, translatedCode);
+    }
+
+    setShowTranslations(false);
+    setTranslations(new Map());
+    setDetectedComments([]);
   };
 
   return (
@@ -184,13 +274,42 @@ const EditorPage = () => {
             <span className="text-sm text-gray-300">{users.length + 1}</span>
           </div>
 
+          {/* Target language selector */}
+          <select
+            value={targetLanguage}
+            onChange={(e) => setTargetLanguage(e.target.value)}
+            className="px-3 py-1.5 bg-[#1e1e1e] text-gray-300 text-sm rounded-lg border border-[#3e3e42] focus:outline-none focus:border-purple-500"
+          >
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="zh">Chinese</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="ar">Arabic</option>
+            <option value="hi">Hindi</option>
+            <option value="pt">Portuguese</option>
+            <option value="ru">Russian</option>
+            <option value="it">Italian</option>
+          </select>
+
           {/* Detect Comments button */}
           <button
             onClick={handleDetectComments}
-            className="flex items-center gap-2 px-4 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition-colors"
           >
             <MessageSquare className="w-4 h-4" />
-            Detect Comments
+            Detect
+          </button>
+
+          {/* Translate button */}
+          <button
+            onClick={() => handleDetectAndTranslate()}
+            disabled={isTranslating}
+            className="flex items-center gap-2 px-4 py-1.5 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+          >
+            <Languages className="w-4 h-4" />
+            {isTranslating ? "Translating..." : "Translate"}
           </button>
 
           {/* Copy link button */}
@@ -247,6 +366,26 @@ const EditorPage = () => {
               </div>
             )}
           </div>
+
+          {/* Detected comments info */}
+          {detectedComments.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-[#3e3e42]">
+              <h3 className="text-sm font-semibold text-gray-300 mb-2">
+                Detected Comments
+              </h3>
+              <div className="text-xs text-gray-400">
+                {detectedComments.length} comment(s) found
+              </div>
+              {translations.size > 0 && (
+                <button
+                  onClick={handleApplyTranslations}
+                  className="mt-2 w-full px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors"
+                >
+                  Apply Translations
+                </button>
+              )}
+            </div>
+          )}
         </aside>
 
         {/* Editor */}
@@ -270,7 +409,46 @@ const EditorPage = () => {
             }}
           />
 
-          {/* Cursor indicators (basic visual feedback) */}
+          {/* Translation overlay */}
+          {showTranslations && translations.size > 0 && (
+            <div className="absolute top-4 left-4 right-4 bg-purple-900/95 backdrop-blur-sm border border-purple-500/50 rounded-lg p-4 max-h-[40vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-white font-semibold flex items-center gap-2">
+                  <Languages className="w-4 h-4" />
+                  Translations ({translations.size})
+                </h3>
+                <button
+                  onClick={() => setShowTranslations(false)}
+                  className="text-gray-300 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {detectedComments.map((comment, idx) => {
+                  const translation = translations.get(comment.line);
+                  if (!translation) return null;
+
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-[#1e1e1e]/50 rounded p-2 text-xs border border-purple-500/30"
+                    >
+                      <div className="text-gray-400 mb-1">
+                        Line {comment.line + 1}:
+                      </div>
+                      <div className="text-gray-300 mb-1">
+                        Original: "{comment.text}"
+                      </div>
+                      <div className="text-purple-300">→ "{translation}"</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Cursor indicators */}
           {cursors.length > 0 && (
             <div className="absolute top-4 right-4 space-y-1">
               {cursors.map((c) => (
