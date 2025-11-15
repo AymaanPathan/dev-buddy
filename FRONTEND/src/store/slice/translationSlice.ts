@@ -4,6 +4,9 @@ import {
   gettranslateBatchApi,
   type TranslationResult,
 } from "../../api/rooms/translate/getBatchTranslate.api";
+import { getTranslationHistoryApi } from "../../api/rooms/translate/getTranslationHistory.api";
+
+// ----------------- Thunks -----------------
 
 export const translateBatch = createAsyncThunk<
   TranslationResult[],
@@ -30,31 +33,65 @@ export const translateBatch = createAsyncThunk<
   }
 );
 
-// Slice state interface
+export const getTranslationHistory = createAsyncThunk<
+  TranslationResult[],
+  { roomId: string; clientId: string },
+  { rejectValue: { error: string } }
+>(
+  "translation/getTranslationHistory",
+  async ({ roomId, clientId }, { rejectWithValue }) => {
+    try {
+      const data = await getTranslationHistoryApi(roomId, clientId);
+      return data;
+    } catch (err: any) {
+      return rejectWithValue({
+        error: err.response?.data || "Failed to fetch translation history",
+      });
+    }
+  }
+);
+
+// ----------------- Slice -----------------
+
 interface TranslationState {
-  translations: TranslationResult[];
+  translations: Record<number, string>; // Changed from Map to Record (plain object)
+  history: any[];
   loading: boolean;
-  error: string | null;
+  error?: string | null;
 }
 
-// Initial state
 const initialState: TranslationState = {
-  translations: [],
+  translations: {}, // Changed from new Map() to {}
+  history: [],
   loading: false,
   error: null,
 };
 
-// Slice
 const translationSlice = createSlice({
   name: "translation",
   initialState,
   reducers: {
+    setTranslations: (state, action) => {
+      state.translations = action.payload;
+    },
+
+    updateTranslation: (state, action) => {
+      // Use plain object assignment instead of Map.set()
+      state.translations[action.payload.line] = action.payload.text;
+    },
+
     clearTranslations: (state) => {
-      state.translations = [];
-      state.error = null;
+      // Reset to empty object instead of calling Map.clear()
+      state.translations = {};
+    },
+
+    setTranslationHistory: (state, action) => {
+      state.history = action.payload;
     },
   },
+
   extraReducers: (builder) => {
+    // translateBatch
     builder
       .addCase(translateBatch.pending, (state) => {
         state.loading = true;
@@ -62,14 +99,53 @@ const translationSlice = createSlice({
       })
       .addCase(translateBatch.fulfilled, (state, action) => {
         state.loading = false;
-        state.translations = action.payload;
+
+        // Convert array to plain object instead of Map
+        const translations: Record<number, string> = {};
+        action.payload.forEach((item) => {
+          translations[item.line] = item.text;
+        });
+
+        state.translations = translations;
       })
       .addCase(translateBatch.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload?.error || "Failed to translate";
+        state.error = action.payload?.error || "Failed to translate batch";
+      });
+
+    // getTranslationHistory
+    builder
+      .addCase(getTranslationHistory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getTranslationHistory.fulfilled, (state, action) => {
+        state.loading = false;
+
+        // Convert array to plain object instead of Map
+        const translations: Record<number, string> = {};
+        action.payload.forEach((item) => {
+          translations[item.line] = item.text;
+        });
+
+        state.translations = translations;
+        state.history = action.payload;
+      })
+      .addCase(getTranslationHistory.rejected, (state, action) => {
+        state.loading = false;
+        state.error =
+          action.payload?.error || "Failed to fetch translation history";
       });
   },
 });
 
-export const { clearTranslations } = translationSlice.actions;
+// ----------------- Exports -----------------
+
+export const {
+  setTranslations,
+  updateTranslation,
+  clearTranslations,
+  setTranslationHistory,
+} = translationSlice.actions;
+
 export default translationSlice.reducer;

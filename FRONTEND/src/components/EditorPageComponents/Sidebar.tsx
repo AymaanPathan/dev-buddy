@@ -1,6 +1,9 @@
 import { AnimatePresence, motion } from "framer-motion";
 import React from "react";
 import { Languages } from "lucide-react";
+import { useDispatch } from "react-redux";
+import type { RootDispatch } from "../../store";
+import { getTranslationHistory } from "../../store/slice/translationSlice";
 
 interface SidebarProps {
   users: Array<{ name: string; language: string; socketId?: string }>;
@@ -17,6 +20,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isTranslating,
   translationProgress,
 }) => {
+  const dispatch: RootDispatch = useDispatch();
+  const handleGetTranslationHistory = async () => {
+    await dispatch(getTranslationHistory({ roomId, clientId: user.clientId! }));
+  };
   return (
     <aside className="w-64 bg-[#202020]/80 backdrop-blur-sm border-r border-white/8 p-4 overflow-y-auto">
       <h3 className="text-[13px] font-semibold text-gray-300 mb-3 tracking-tight">

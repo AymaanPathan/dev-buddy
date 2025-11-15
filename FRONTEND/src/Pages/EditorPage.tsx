@@ -35,6 +35,10 @@ import {
   setUser,
   setUsers,
 } from "../store/slice/roomSlice";
+import {
+  updateTranslation,
+  clearTranslations,
+} from "../store/slice/translationSlice";
 import { extractComments, type Comment } from "../utils/commentDetector";
 import { getLanguageCode } from "../utils/getLanCode.utils";
 import { Header } from "../components/EditorPageComponents/Header";
@@ -52,15 +56,18 @@ const EditorPage = () => {
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.room);
   const users = useSelector((state: RootState) => state.room.users);
+
+  // Get translations from Redux store (now a plain object)
+  const translations = useSelector(
+    (state: RootState) => state.translation.translations
+  );
+
   const [code, setCode] = useState("// Start coding together...\n");
   const [cursors, setCursors] = useState<Cursor[]>([]);
   const editorRef = useRef<any>(null);
   const isUpdatingFromSocket = useRef(false);
 
-  // Translation state
-  const [translations, setTranslations] = useState<Map<number, string>>(
-    new Map()
-  );
+  // Translation state (only loading/progress, not the data itself)
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationProgress, setTranslationProgress] = useState(0);
 
@@ -153,14 +160,13 @@ const EditorPage = () => {
       setTranslationProgress(data.progress);
 
       if (data.success && lastCommentsRef.current[data.index]) {
-        setTranslations((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(
-            lastCommentsRef.current[data.index].line,
-            data.translatedText
-          );
-          return newMap;
-        });
+        // Dispatch to Redux instead of local setState
+        dispatch(
+          updateTranslation({
+            line: lastCommentsRef.current[data.index].line,
+            text: data.translatedText,
+          })
+        );
       }
     });
 
@@ -182,7 +188,7 @@ const EditorPage = () => {
     return () => {
       removeTranslationListeners();
     };
-  }, [roomId, user]);
+  }, [roomId, user, dispatch]);
 
   // Auto-translate comments when code changes
   const autoTranslateComments = (currentCode: string) => {
@@ -198,7 +204,8 @@ const EditorPage = () => {
 
       // Only translate if there are comments
       if (comments.length === 0) {
-        setTranslations(new Map());
+        // Clear translations in Redux
+        dispatch(clearTranslations());
         lastCommentsRef.current = [];
         return;
       }
@@ -252,6 +259,9 @@ const EditorPage = () => {
     });
   };
 
+  // Get translation count
+  const translationCount = Object.keys(translations).length;
+
   return (
     <div className="h-screen bg-[#191919] flex flex-col">
       <Header
@@ -296,7 +306,7 @@ const EditorPage = () => {
 
           {/* Floating translation panel - Notion-style */}
           <AnimatePresence>
-            {translations.size > 0 && (
+            {translationCount > 0 && (
               <motion.div
                 initial={{ opacity: 0, x: 20, y: -20 }}
                 animate={{ opacity: 1, x: 0, y: 0 }}
@@ -313,12 +323,12 @@ const EditorPage = () => {
                     <div className="flex flex-col">
                       <span>Live Translations</span>
                       <span className="text-[11px] text-gray-500 font-normal">
-                        {translations.size} active
+                        {translationCount} active
                       </span>
                     </div>
                   </h3>
                   <button
-                    onClick={() => setTranslations(new Map())}
+                    onClick={() => dispatch(clearTranslations())}
                     className="text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all duration-200 p-2 rounded-lg"
                     title="Clear all translations"
                   >
@@ -330,7 +340,7 @@ const EditorPage = () => {
                 <div className="max-h-[65vh] overflow-y-auto px-4 py-3 space-y-3 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
                   <AnimatePresence mode="popLayout">
                     {lastCommentsRef.current.map((comment, idx) => {
-                      const translation = translations.get(comment.line);
+                      const translation = translations[comment.line];
                       if (!translation) return null;
 
                       return (

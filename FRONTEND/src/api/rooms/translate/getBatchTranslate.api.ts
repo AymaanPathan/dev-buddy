@@ -1,6 +1,8 @@
 import axiosSetup from "../../../utils/axiosSetup";
 
 export interface TranslationResult {
+  text: string;
+  line: number;
   originalText: string;
   translatedText: string;
   detectedLanguage?: string;

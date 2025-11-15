@@ -7,15 +7,21 @@ export const getTranslationHistoryController = async (
   res: Response
 ) => {
   try {
-    const { roomId } = req.params;
+    const { roomId, clientId } = req.body;
 
     if (!roomId) {
       return res.status(400).json({ success: false, error: "Missing roomId" });
     }
+    if (!clientId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing clientId" });
+    }
 
-    const history = await TranslationCacheModel.find({ roomId })
-      .sort({ line: 1, createdAt: 1 }) // sorted by line number and time
-      .lean();
+    const history = await TranslationCacheModel.find({
+      roomId,
+      clientId,
+    }).lean();
 
     return res.json({ success: true, translations: history });
   } catch (error) {

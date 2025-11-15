@@ -7,6 +7,6 @@ const router = express.Router();
 
 router.post("/translate", translateController);
 router.post("/batch", batchTranslateController);
-router.get("/history/:roomId", getTranslationHistoryController);
+router.post("/history", getTranslationHistoryController);
 
 export default router;
