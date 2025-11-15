@@ -21,6 +21,12 @@ import {
   onRoomUsersList,
   removeAllListeners,
   getSocketId,
+  emitTranslateBatch,
+  onTranslateStart,
+  onTranslateChunk,
+  onTranslateComplete,
+  onTranslateError,
+  removeTranslationListeners,
 } from "../services/socket";
 import { addUser, removeUser, setUsers } from "../store/slice/roomSlice";
 import {
@@ -29,7 +35,6 @@ import {
   replaceCommentsWithTranslations,
   type Comment,
 } from "../utils/commentDetector";
-import { translateBatch } from "../store/slice/translationSlice";
 import { getLanguageCode } from "../utils/getLanCode.utils";
 
 interface Cursor {
@@ -50,13 +55,15 @@ const EditorPage = () => {
   const isUpdatingFromSocket = useRef(false);
 
   // Translation state
-  const [detectedComments, setDetectedComments] = useState<Comment[]>([]);
   const [translations, setTranslations] = useState<Map<number, string>>(
     new Map()
   );
-  const [showTranslations, setShowTranslations] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [targetLanguage, setTargetLanguage] = useState("es");
+  const [translationProgress, setTranslationProgress] = useState(0);
+
+  // Refs for debouncing
+  const translationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastCommentsRef = useRef<Comment[]>([]);
 
   console.log("📝 EditorPage rendered", cursors);
 
@@ -91,53 +98,17 @@ const EditorPage = () => {
     onCodeUpdate(async (rawData: any) => {
       isUpdatingFromSocket.current = true;
 
-      // onCodeUpdate may provide either a string (code) or an object { code, language }
       const data =
         typeof rawData === "string"
           ? { code: rawData, language: "javascript" }
           : rawData;
 
-      let updatedCode = data.code;
-
-      // Extract comments
-      const comments = extractComments(updatedCode, "javascript"); // or detect dynamically
-
-      if (comments.length > 0) {
-        try {
-          const targetLang = getLanguageCode(user?.language || "javascript");
-
-          const results = await dispatch(
-            translateBatch({
-              texts: comments.map((c) => c.text),
-              targetLanguage: targetLang,
-              sourceLanguage: "auto",
-            })
-          ).unwrap();
-
-          const translationMap = new Map<number, string>();
-          comments.forEach((c, i) => {
-            if (results[i].success)
-              translationMap.set(c.line, results[i].translatedText);
-          });
-
-          updatedCode = replaceCommentsWithTranslations(
-            updatedCode,
-            comments,
-            translationMap,
-            "javascript"
-          );
-        } catch (err) {
-          console.error("Auto translation failed:", err);
-        }
-      }
-
-      setCode(updatedCode);
+      setCode(data.code);
     });
 
     onCursorUpdate((data) => {
       const mySocketId = getSocketId();
 
-      // Ignore your own cursor
       if (data.socketId === mySocketId) {
         return;
       }
@@ -147,7 +118,6 @@ const EditorPage = () => {
         return [...filtered, data];
       });
 
-      // Auto-remove typing indicator after 5s
       setTimeout(() => {
         setCursors((prev) => prev.filter((c) => c.socketId !== data.socketId));
       }, 5000);
@@ -168,9 +138,95 @@ const EditorPage = () => {
 
     return () => {
       removeAllListeners();
+      removeTranslationListeners();
       disconnectSocket();
+      if (translationTimeoutRef.current) {
+        clearTimeout(translationTimeoutRef.current);
+      }
     };
-  }, [roomId, user, navigate, dispatch, showTranslations]);
+  }, [roomId, user, navigate, dispatch]);
+
+  // Set up real-time translation listeners
+  useEffect(() => {
+    if (!roomId || !user) return;
+
+    // Set up socket listeners for real-time translation
+    onTranslateStart((data) => {
+      console.log(`🚀 Translation started: ${data.total} texts`);
+      setIsTranslating(true);
+      setTranslationProgress(0);
+    });
+
+    onTranslateChunk((data) => {
+      console.log(
+        `📦 Received chunk ${data.index + 1} (${data.progress}% complete)`
+      );
+
+      setTranslationProgress(data.progress);
+
+      if (data.success && lastCommentsRef.current[data.index]) {
+        setTranslations((prev) => {
+          const newMap = new Map(prev);
+          newMap.set(
+            lastCommentsRef.current[data.index].line,
+            data.translatedText
+          );
+          return newMap;
+        });
+      }
+    });
+
+    onTranslateComplete((data) => {
+      console.log(`✅ Translation complete! ${data.total} texts translated.`);
+      setIsTranslating(false);
+      setTranslationProgress(100);
+
+      // Reset progress after 2 seconds
+      setTimeout(() => setTranslationProgress(0), 2000);
+    });
+
+    onTranslateError((data) => {
+      console.error("Translation error:", data);
+      setIsTranslating(false);
+      setTranslationProgress(0);
+    });
+
+    return () => {
+      removeTranslationListeners();
+    };
+  }, [roomId, user]);
+
+  // Auto-translate comments when code changes
+  const autoTranslateComments = (currentCode: string) => {
+    // Clear previous timeout
+    if (translationTimeoutRef.current) {
+      clearTimeout(translationTimeoutRef.current);
+    }
+
+    // Debounce translation by 1 second
+    translationTimeoutRef.current = setTimeout(() => {
+      const language = user?.language || "javascript";
+      const comments = extractComments(currentCode, language);
+
+      // Only translate if there are comments
+      if (comments.length === 0) {
+        setTranslations(new Map());
+        lastCommentsRef.current = [];
+        return;
+      }
+
+      console.log(`🔍 Auto-detecting ${comments.length} comments...`);
+      lastCommentsRef.current = comments;
+
+      const commentTexts = comments.map((c) => c.text);
+      const targetLang = getLanguageCode(user?.language || "javascript");
+
+      // Emit translation request via Socket.IO
+      if (roomId) {
+        emitTranslateBatch(commentTexts, targetLang, "auto", roomId);
+      }
+    }, 1000); // Wait 1 second after user stops typing
+  };
 
   // Handle code changes
   const handleCodeChange = (value: string | undefined) => {
@@ -183,11 +239,13 @@ const EditorPage = () => {
     if (roomId && user) {
       emitCodeChange(roomId, value, user.language);
     }
+
+    // Auto-translate comments
+    autoTranslateComments(value);
   };
 
   // Handle cursor position changes
   const handleCursorChange = (e: any) => {
-    // Don't emit cursor position if we're currently updating from socket
     if (isUpdatingFromSocket.current || !roomId || !user) {
       return;
     }
@@ -199,94 +257,9 @@ const EditorPage = () => {
     });
   };
 
-  // Detect comments only
-  const handleDetectComments = () => {
-    const language = user?.language || "javascript";
-    const comments = extractComments(code, language);
-
-    console.log("\n🔍 ===== COMMENT DETECTION =====");
-    console.log(`Language: ${language}`);
-    console.log(`Total Comments Found: ${comments.length}\n`);
-
-    logComments(comments);
-    setDetectedComments(comments);
-  };
-
-  // Detect and translate comments
-  const handleDetectAndTranslate = async (codeToTranslate?: string) => {
-    const currentCode = codeToTranslate || code;
-    const language = user?.language || "javascript";
-    const comments = extractComments(currentCode, language);
-
-    setDetectedComments(comments);
-
-    if (comments.length === 0) {
-      alert("No comments found in the code!");
-      return;
-    }
-
-    setIsTranslating(true);
-
-    try {
-      console.log(
-        `🌐 Translating ${comments.length} comments to ${targetLanguage}...`
-      );
-
-      // Extract comment texts
-      const commentTexts = comments.map((c) => c.text);
-      const targetLang = getLanguageCode(user?.language || "javascript");
-
-      // Translate all comments
-      const results = await dispatch(
-        translateBatch({
-          texts: commentTexts,
-          targetLanguage: targetLang,
-          sourceLanguage: "auto",
-        })
-      ).unwrap();
-
-      // Create translations map
-      const newTranslations = new Map<number, string>();
-      comments.forEach((comment, index) => {
-        if (results[index].success) {
-          newTranslations.set(comment.line, results[index].translatedText);
-        }
-      });
-
-      setTranslations(newTranslations);
-      setShowTranslations(true);
-
-      console.log(
-        `✅ Translation complete! ${newTranslations.size} comments translated.`
-      );
-    } catch (error) {
-      console.error("Translation error:", error);
-      alert("Translation failed. Check console for details.");
-    } finally {
-      setIsTranslating(false);
-    }
-  };
-
-  // Apply translations to code
-  const handleApplyTranslations = () => {
-    if (translations.size === 0) return;
-
-    const language = user?.language || "javascript";
-    const translatedCode = replaceCommentsWithTranslations(
-      code,
-      detectedComments,
-      translations,
-      language
-    );
-
-    setCode(translatedCode);
-    if (roomId) {
-      emitCodeChange(roomId, translatedCode);
-    }
-
-    setShowTranslations(false);
-    setTranslations(new Map());
-    setDetectedComments([]);
+  // Get translated line for display
+  const getTranslatedLine = (lineNumber: number): string | null => {
+    return translations.get(lineNumber - 1) || null;
   };
 
   return (
@@ -307,22 +280,21 @@ const EditorPage = () => {
             <span className="text-sm text-gray-300">{users.length + 1}</span>
           </div>
 
-          {/* Detect Comments button */}
-          <button
-            onClick={handleDetectComments}
-            className="flex items-center gap-2 px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition-colors"
-          >
-            <MessageSquare className="w-4 h-4" />
-            Detect
-          </button>
-          <button
-            onClick={() => handleDetectAndTranslate()}
-            disabled={isTranslating}
-            className="flex items-center gap-2 px-4 py-1.5 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 text-white text-sm rounded-lg transition-colors"
-          >
-            <Languages className="w-4 h-4" />
-            {isTranslating ? "Translating..." : "Translate"}
-          </button>
+          {/* Auto-translate indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+            <Languages className="w-4 h-4 text-purple-400" />
+            <span className="text-sm text-purple-300">Auto-translate: ON</span>
+          </div>
+
+          {/* Translation status */}
+          {isTranslating && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#1e1e1e] rounded-lg border border-[#3e3e42]">
+              <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+              <span className="text-xs text-gray-300">
+                Translating... {translationProgress}%
+              </span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -361,23 +333,39 @@ const EditorPage = () => {
             )}
           </div>
 
-          {/* Detected comments info */}
-          {detectedComments.length > 0 && (
+          {/* Translation info */}
+          {translations.size > 0 && (
             <div className="mt-4 pt-4 border-t border-[#3e3e42]">
               <h3 className="text-sm font-semibold text-gray-300 mb-2">
-                Detected Comments
+                <Languages className="w-4 h-4 inline mr-1" />
+                Live Translations
               </h3>
               <div className="text-xs text-gray-400">
-                {detectedComments.length} comment(s) found
+                {translations.size} comment(s) translated
               </div>
-              {translations.size > 0 && (
-                <button
-                  onClick={handleApplyTranslations}
-                  className="mt-2 w-full px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors"
-                >
-                  Apply Translations
-                </button>
-              )}
+              <div className="text-xs text-purple-400 mt-1">
+                Translations update automatically
+              </div>
+            </div>
+          )}
+
+          {/* Progress bar */}
+          {isTranslating && translationProgress > 0 && (
+            <div className="mt-4 pt-4 border-t border-[#3e3e42]">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-400">
+                  Translation Progress
+                </span>
+                <span className="text-xs text-purple-400 font-mono">
+                  {translationProgress}%
+                </span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div
+                  className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${translationProgress}%` }}
+                />
+              </div>
             </div>
           )}
         </aside>
@@ -403,38 +391,43 @@ const EditorPage = () => {
             }}
           />
 
-          {/* Translation overlay */}
-          {showTranslations && translations.size > 0 && (
-            <div className="absolute top-4 left-4 right-4 bg-purple-900/95 backdrop-blur-sm border border-purple-500/50 rounded-lg p-4 max-h-[40vh] overflow-y-auto">
+          {/* Floating translation panel */}
+          {translations.size > 0 && (
+            <div className="absolute top-4 right-4 w-80 bg-purple-900/95 backdrop-blur-sm border border-purple-500/50 rounded-lg p-3 max-h-[60vh] overflow-y-auto shadow-xl">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white font-semibold flex items-center gap-2">
+                <h3 className="text-white font-semibold flex items-center gap-2 text-sm">
                   <Languages className="w-4 h-4" />
-                  Translations ({translations.size})
+                  Live Translations ({translations.size})
                 </h3>
                 <button
-                  onClick={() => setShowTranslations(false)}
-                  className="text-gray-300 hover:text-white"
+                  onClick={() => setTranslations(new Map())}
+                  className="text-gray-300 hover:text-white transition-colors"
+                  title="Clear translations"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
               <div className="space-y-2">
-                {detectedComments.map((comment, idx) => {
+                {lastCommentsRef.current.map((comment, idx) => {
                   const translation = translations.get(comment.line);
                   if (!translation) return null;
 
                   return (
                     <div
                       key={idx}
-                      className="bg-[#1e1e1e]/50 rounded p-2 text-xs border border-purple-500/30"
+                      className="bg-[#1e1e1e]/50 rounded p-2 text-xs border border-purple-500/30 animate-fade-in"
                     >
-                      <div className="text-gray-400 mb-1">
-                        Line {comment.line + 1}:
+                      <div className="text-gray-400 mb-1 font-mono">
+                        Line {comment.line + 1}
                       </div>
                       <div className="text-gray-300 mb-1">
-                        Original: "{comment.text}"
+                        <span className="text-gray-500">Original:</span> "
+                        {comment.text}"
                       </div>
-                      <div className="text-purple-300">→ "{translation}"</div>
+                      <div className="text-purple-300">
+                        <span className="text-purple-500">→</span> "
+                        {translation}"
+                      </div>
                     </div>
                   );
                 })}
@@ -444,7 +437,7 @@ const EditorPage = () => {
 
           {/* Cursor indicators */}
           {cursors.length > 0 && (
-            <div className="absolute top-4 right-4 space-y-1">
+            <div className="absolute top-4 left-4 space-y-1">
               {cursors.map((c) => (
                 <div
                   key={c.socketId}
@@ -457,6 +450,23 @@ const EditorPage = () => {
           )}
         </main>
       </div>
+
+      {/* Add custom CSS for animations */}
+      <style>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(-4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 };

@@ -112,3 +112,54 @@ export const removeAllListeners = () => {
   socket?.removeAllListeners();
 };
 export const getSocketId = () => socket?.id;
+export const emitTranslateBatch = (
+  texts: string[],
+  targetLanguage: string,
+  sourceLanguage: string = "auto",
+  roomId: string
+) => {
+  socket?.emit("translate:batch", {
+    texts,
+    targetLanguage,
+    sourceLanguage,
+    roomId,
+  });
+};
+
+export const onTranslateStart = (
+  callback: (data: { total: number }) => void
+) => {
+  socket?.on("translate:start", callback);
+};
+
+export const onTranslateChunk = (
+  callback: (data: {
+    index: number;
+    originalText: string;
+    translatedText: string;
+    success: boolean;
+    progress: number;
+    error?: string;
+  }) => void
+) => {
+  socket?.on("translate:chunk", callback);
+};
+
+export const onTranslateComplete = (
+  callback: (data: { total: number; message: string }) => void
+) => {
+  socket?.on("translate:complete", callback);
+};
+
+export const onTranslateError = (
+  callback: (data: { error: string; message?: string }) => void
+) => {
+  socket?.on("translate:error", callback);
+};
+
+export const removeTranslationListeners = () => {
+  socket?.off("translate:start");
+  socket?.off("translate:chunk");
+  socket?.off("translate:complete");
+  socket?.off("translate:error");
+};

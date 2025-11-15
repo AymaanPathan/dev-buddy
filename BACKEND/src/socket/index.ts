@@ -4,6 +4,7 @@ import { codeChange } from "./codeChange";
 import { cursorMove } from "./cursorMove";
 import { disconnect } from "./disconnect";
 import { startSession } from "./startSession";
+import { translateComments } from "./translateComments";
 
 export const registerSocketEvents = (io: Server) => {
   io.on("connection", (socket: Socket) => {
@@ -13,6 +14,8 @@ export const registerSocketEvents = (io: Server) => {
     startSession(socket);
     codeChange(socket);
     cursorMove(socket);
+    translateComments(socket);
+
     disconnect(socket);
   });
 };
