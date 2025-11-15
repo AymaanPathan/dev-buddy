@@ -80,18 +80,6 @@ const RoomLobbyPage = () => {
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:72px_72px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000,transparent)]" />
 
       <div className="relative">
-        {/* Header */}
-        <header className="border-b border-white/[0.08] bg-[#191919]/80 backdrop-blur-xl">
-          <div className="max-w-5xl mx-auto px-6 h-16 flex items-center">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-violet-600 rounded-lg flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-semibold text-base">CodeBridge</span>
-            </div>
-          </div>
-        </header>
-
         {/* Main Content */}
         <main className="max-w-3xl mx-auto px-6 py-16">
           {/* Status Badge */}
