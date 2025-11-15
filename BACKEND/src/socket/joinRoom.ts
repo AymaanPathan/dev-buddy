@@ -25,6 +25,8 @@ export const joinRoom = (socket: Socket) => {
 
       // Join socket.io room
       socket.join(roomId);
+      socket.data.name = name;
+      socket.data.language = language;
       console.log(`✅ Socket ${socket.id} joined room ${roomId}`);
 
       // Check if user already exists (by name)

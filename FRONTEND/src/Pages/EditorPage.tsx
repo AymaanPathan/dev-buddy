@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import Editor from "@monaco-editor/react";
+
 import { Users, Copy, Check } from "lucide-react";
 import type { RootDispatch, RootState } from "../store";
 import {
@@ -19,6 +20,7 @@ import {
   onUserLeft,
   onRoomUsersList,
   removeAllListeners,
+  getSocketId,
 } from "../services/socket";
 import { addUser, removeUser, setUsers } from "../store/slice/roomSlice";
 
@@ -40,6 +42,7 @@ const EditorPage = () => {
   const editorRef = useRef<any>(null);
   const isUpdatingFromSocket = useRef(false);
 
+  console.log("📝 EditorPage rendered", cursors);
   // Initialize socket connection
   useEffect(() => {
     if (!roomId || !user) {
@@ -73,12 +76,23 @@ const EditorPage = () => {
       setCode(updatedCode);
     });
 
-    // Handle cursor updates
     onCursorUpdate((data) => {
+      const mySocketId = getSocketId();
+
+      // Ignore your own cursor
+      if (data.socketId === mySocketId) {
+        return;
+      }
+
       setCursors((prev) => {
         const filtered = prev.filter((c) => c.socketId !== data.socketId);
         return [...filtered, data];
       });
+
+      // Auto-remove typing indicator after 1s
+      // setTimeout(() => {
+      //   setCursors((prev) => prev.filter((c) => c.socketId !== data.socketId));
+      // }, 1000);
     });
 
     // Handle user joined
@@ -115,14 +129,16 @@ const EditorPage = () => {
 
   // Handle cursor position changes
   const handleCursorChange = (e: any) => {
-    if (!roomId || !user) return;
+    // Don't emit cursor position if we're currently updating from socket
+    if (isUpdatingFromSocket.current || !roomId || !user) {
+      return;
+    }
 
     const position = e.position;
-    emitCursorMove(
-      roomId,
-      { line: position.lineNumber, column: position.column },
-      user.name
-    );
+    emitCursorMove(roomId, {
+      line: position.lineNumber,
+      column: position.column,
+    });
   };
 
   // Copy room link
@@ -187,15 +203,17 @@ const EditorPage = () => {
             </div>
 
             {/* Other users */}
-            {users.map((u, idx) => (
-              <div
-                key={`${u.name}-${idx}`}
-                className="p-2 bg-[#1e1e1e] border border-[#3e3e42] rounded-lg"
-              >
-                <div className="font-medium text-sm text-white">{u.name}</div>
-                <div className="text-xs text-gray-400">{u.language}</div>
-              </div>
-            ))}
+            {users.map((u, idx) => {
+              return (
+                <div
+                  key={`${u.name}-${idx}`}
+                  className="p-2 bg-[#1e1e1e] border border-[#3e3e42] rounded-lg"
+                >
+                  <div className="font-medium text-sm text-white">{u.name}</div>
+                  <div className="text-xs text-gray-400">{u.language}</div>
+                </div>
+              );
+            })}
 
             {users.length === 0 && (
               <div className="text-center py-4 text-gray-500 text-sm">

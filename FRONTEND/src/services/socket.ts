@@ -64,10 +64,9 @@ export const onInitialCode = (callback: (code: string) => void) => {
 // === Cursor events ===
 export const emitCursorMove = (
   roomId: string,
-  cursor: { line: number; column: number },
-  name: string
+  cursor: { line: number; column: number }
 ) => {
-  socket?.emit("cursor-move", { roomId, cursor, name });
+  socket?.emit("cursor-move", { roomId, cursor });
 };
 
 export const onCursorUpdate = (
@@ -108,3 +107,4 @@ export const emitStartSession = (roomId: string) => {
 export const removeAllListeners = () => {
   socket?.removeAllListeners();
 };
+export const getSocketId = () => socket?.id;
