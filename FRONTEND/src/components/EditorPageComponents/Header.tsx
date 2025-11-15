@@ -19,11 +19,11 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="h-[52px] bg-[#202020]/80 backdrop-blur-xl border-b border-white/8 flex items-center justify-between px-6 sticky top-0 z-50">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-6 h-6 bg-linear-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-md flex items-center justify-center shadow-lg shadow-blue-500/25">
+          {/* <div className="w-6 h-6 bg-linear-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-md flex items-center justify-center shadow-lg shadow-blue-500/25">
             <Sparkles className="w-3.5 h-3.5 text-white" />
-          </div>
+          </div> */}
           <h1 className="text-white/95 font-semibold text-[15px] tracking-tight">
-            CodeBridge
+            CodeBuddy
           </h1>
         </div>
         <div className="text-[13px] text-gray-400">

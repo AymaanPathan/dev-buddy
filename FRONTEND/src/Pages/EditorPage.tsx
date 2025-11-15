@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import Editor from "@monaco-editor/react";
+import { motion, AnimatePresence } from "framer-motion";
 
+import { Languages, X } from "lucide-react";
 import type { RootDispatch, RootState } from "../store";
 import {
   connectSocket,
@@ -31,7 +34,6 @@ import { extractComments, type Comment } from "../utils/commentDetector";
 import { getLanguageCode } from "../utils/getLanCode.utils";
 import { Header } from "../components/EditorPageComponents/Header";
 import { Sidebar } from "../components/EditorPageComponents/Sidebar";
-import { CodeEditor } from "../components/EditorPageComponents/CodeEditor";
 
 interface Cursor {
   socketId: string;
@@ -58,10 +60,8 @@ const EditorPage = () => {
   const [translationProgress, setTranslationProgress] = useState(0);
 
   // Refs for debouncing
-  const translationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
-  const [lastComments, setLastComments] = useState<Comment[]>([]);
+  const translationTimeoutRef = useRef(null);
+  const lastCommentsRef = useRef<Comment[]>([]);
 
   console.log("📝 EditorPage rendered", cursors);
 
@@ -162,10 +162,13 @@ const EditorPage = () => {
 
       setTranslationProgress(data.progress);
 
-      if (data.success && lastComments[data.index]) {
+      if (data.success && lastCommentsRef.current[data.index]) {
         setTranslations((prev) => {
           const newMap = new Map(prev);
-          newMap.set(lastComments[data.index].line, data.translatedText);
+          newMap.set(
+            lastCommentsRef.current[data.index].line,
+            data.translatedText
+          );
           return newMap;
         });
       }
@@ -206,12 +209,13 @@ const EditorPage = () => {
       // Only translate if there are comments
       if (comments.length === 0) {
         setTranslations(new Map());
-        setLastComments([]);
+        lastCommentsRef.current = [];
         return;
       }
 
       console.log(`🔍 Auto-detecting ${comments.length} comments...`);
-      setLastComments(comments);
+      lastCommentsRef.current = comments;
+
       const commentTexts = comments.map((c) => c.text);
       const targetLang = getLanguageCode(user?.language || "javascript");
 
@@ -271,16 +275,145 @@ const EditorPage = () => {
         />
 
         {/* Editor */}
-        <CodeEditor
-          code={code}
-          handleCodeChange={handleCodeChange}
-          handleCursorChange={handleCursorChange}
-          editorRef={editorRef}
-          translations={translations}
-          setTranslations={setTranslations}
-          lastComments={lastComments}
-          cursors={cursors}
-        />
+        <main className="flex-1 relative bg-[#1e1e1e]">
+          <Editor
+            height="100%"
+            defaultLanguage="javascript"
+            theme="vs-dark"
+            value={code}
+            onChange={handleCodeChange}
+            onMount={(editor) => {
+              editorRef.current = editor;
+              editor.onDidChangeCursorPosition(handleCursorChange);
+            }}
+            options={{
+              fontSize: 14,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              tabSize: 2,
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              lineHeight: 1.6,
+            }}
+          />
+
+          {/* Floating translation panel - Notion-style */}
+          <AnimatePresence>
+            {translations.size > 0 && (
+              <motion.div
+                initial={{ opacity: 0, x: 20, y: -20 }}
+                animate={{ opacity: 1, x: 0, y: 0 }}
+                exit={{ opacity: 0, x: 20, y: -20 }}
+                transition={{ type: "spring", damping: 30, stiffness: 400 }}
+                className="absolute top-6 right-6 w-96 bg-[#1e1e1e] backdrop-blur-2xl border border-white/5 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
+                  <h3 className="text-white/90 font-medium flex items-center gap-2.5 text-sm tracking-tight">
+                    <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                      <Languages className="w-4 h-4 text-violet-400" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span>Live Translations</span>
+                      <span className="text-[11px] text-gray-500 font-normal">
+                        {translations.size} active
+                      </span>
+                    </div>
+                  </h3>
+                  <button
+                    onClick={() => setTranslations(new Map())}
+                    className="text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all duration-200 p-2 rounded-lg"
+                    title="Clear all translations"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="max-h-[65vh] overflow-y-auto px-4 py-3 space-y-3 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+                  <AnimatePresence mode="popLayout">
+                    {lastCommentsRef.current.map((comment, idx) => {
+                      const translation = translations.get(comment.line);
+                      if (!translation) return null;
+
+                      return (
+                        <motion.div
+                          key={idx}
+                          layout
+                          initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                          transition={{
+                            delay: idx * 0.03,
+                            type: "spring",
+                            damping: 25,
+                            stiffness: 400,
+                          }}
+                          className="group bg-white/[0.02] hover:bg-white/[0.04] rounded-xl p-4 border border-white/5 hover:border-white/10 transition-all duration-200 cursor-default"
+                        >
+                          {/* Line number badge */}
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="px-2 py-1 rounded-md bg-white/5 border border-white/5">
+                              <span className="text-gray-500 font-mono text-[10px] font-medium tracking-wider">
+                                LINE {comment.line + 1}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Original text */}
+                          <div className="mb-3 space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-1 h-1 rounded-full bg-gray-600"></div>
+                              <span className="text-gray-500 text-[10px] font-medium uppercase tracking-widest">
+                                Original
+                              </span>
+                            </div>
+                            <p className="text-gray-300 text-sm leading-relaxed pl-3">
+                              {comment.text}
+                            </p>
+                          </div>
+
+                          {/* Translation */}
+                          <div className="space-y-1.5 pt-3 border-t border-white/5">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-1 h-1 rounded-full bg-violet-500"></div>
+                              <span className="text-violet-400 text-[10px] font-medium uppercase tracking-widest">
+                                Translation
+                              </span>
+                            </div>
+                            <p className="text-violet-200 text-sm leading-relaxed pl-3 font-medium">
+                              {translation}
+                            </p>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Cursor indicators - Notion-style */}
+          <AnimatePresence>
+            {cursors.length > 0 && (
+              <div className="absolute top-4 left-4 space-y-2">
+                {cursors.map((c) => (
+                  <motion.div
+                    key={c.socketId}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ type: "spring", damping: 20, stiffness: 300 }}
+                    className="px-3 py-1.5 bg-violet-500/[0.12] border border-violet-500/[0.2] rounded-lg text-[12px] text-violet-300 font-medium backdrop-blur-sm shadow-lg"
+                  >
+                    {c.name} is typing...
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </AnimatePresence>
+        </main>
       </div>
     </div>
   );
