@@ -38,6 +38,7 @@ import {
 import {
   updateTranslation,
   clearTranslations,
+  getTranslationHistory,
 } from "../store/slice/translationSlice";
 import { extractComments, type Comment } from "../utils/commentDetector";
 import { getLanguageCode } from "../utils/getLanCode.utils";
@@ -56,10 +57,14 @@ const EditorPage = () => {
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.room);
   const users = useSelector((state: RootState) => state.room.users);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
-  // Get translations from Redux store (now a plain object)
+  // Get translations and history from Redux store
   const translations = useSelector(
     (state: RootState) => state.translation.translations
+  );
+  const translationHistory = useSelector(
+    (state: RootState) => state.translation.history
   );
 
   const [code, setCode] = useState("// Start coding together...\n");
@@ -67,22 +72,26 @@ const EditorPage = () => {
   const editorRef = useRef<any>(null);
   const isUpdatingFromSocket = useRef(false);
 
-  // Translation state (only loading/progress, not the data itself)
+  // Translation state
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationProgress, setTranslationProgress] = useState(0);
 
-  // Refs for debouncing
-  const translationTimeoutRef = useRef(null);
+  // Refs for debouncing and tracking
+  const translationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastCommentsRef = useRef<Comment[]>([]);
+  const hasLoadedHistory = useRef(false);
 
-  console.log("📝 EditorPage rendered", cursors);
+  console.log("📝 EditorPage rendered", {
+    translationCount: Object.keys(translations).length,
+    historyCount: translationHistory.length,
+  });
 
-  // Initialize socket connection
+  // Initialize socket connection and load history
   useEffect(() => {
     let finalUser = user;
     let finalRoomId = roomId;
 
-    // 1) Restore user + room from localStorage before redirect
+    // 1) Restore user + room from localStorage
     const savedUser = localStorage.getItem("lingo_user");
     const savedRoom = localStorage.getItem("lingo_room");
 
@@ -108,10 +117,22 @@ const EditorPage = () => {
     const cached = localStorage.getItem(`lingo_code_${finalRoomId}`);
     if (cached) setCode(cached);
 
-    // 3) Connect socket ONCE
+    // 3) Load translation history
+    if (!hasLoadedHistory.current && finalUser.clientId) {
+      console.log("📚 Loading translation history...");
+      dispatch(
+        getTranslationHistory({
+          roomId: finalRoomId,
+          clientId: finalUser.clientId,
+        })
+      );
+      hasLoadedHistory.current = true;
+    }
+
+    // 4) Connect socket
     connectSocket();
 
-    // 4) Join room ONCE (using restored session)
+    // 5) Join room
     joinRoom(
       finalRoomId,
       finalUser.name,
@@ -119,8 +140,9 @@ const EditorPage = () => {
       finalUser.clientId
     );
 
-    // 5) All your socket listeners...
+    // 6) Socket listeners
     onRoomUsersList((list) => dispatch(setUsers(list)));
+
     onInitialCode((initial) => {
       isUpdatingFromSocket.current = true;
       setCode(initial || "// Start coding together...\n");
@@ -131,7 +153,15 @@ const EditorPage = () => {
       setCode(typeof data === "string" ? data : data.code);
     });
 
-    // ... other listeners (cursor, user joined, left)
+    onUserJoined((data) => {
+      console.log("👋 User joined:", data);
+      dispatch(addUser(data));
+    });
+
+    onUserLeft((data) => {
+      console.log("👋 User left:", data);
+      dispatch(removeUser(data.socketId));
+    });
 
     // Cleanup
     return () => {
@@ -145,7 +175,6 @@ const EditorPage = () => {
   useEffect(() => {
     if (!roomId || !user) return;
 
-    // Set up socket listeners for real-time translation
     onTranslateStart((data) => {
       console.log(`🚀 Translation started: ${data.total} texts`);
       setIsTranslating(true);
@@ -160,11 +189,14 @@ const EditorPage = () => {
       setTranslationProgress(data.progress);
 
       if (data.success && lastCommentsRef.current[data.index]) {
-        // Dispatch to Redux instead of local setState
+        const comment = lastCommentsRef.current[data.index];
+
+        // Dispatch to Redux with both line and original text
         dispatch(
           updateTranslation({
-            line: lastCommentsRef.current[data.index].line,
+            line: comment.line,
             text: data.translatedText,
+            originalText: comment.text,
           })
         );
       }
@@ -204,7 +236,6 @@ const EditorPage = () => {
 
       // Only translate if there are comments
       if (comments.length === 0) {
-        // Clear translations in Redux
         dispatch(clearTranslations());
         lastCommentsRef.current = [];
         return;
@@ -226,7 +257,7 @@ const EditorPage = () => {
           user?.clientId
         );
       }
-    }, 1000); // Wait 1 second after user stops typing
+    }, 1000);
   };
 
   // Handle code changes
@@ -235,9 +266,10 @@ const EditorPage = () => {
       isUpdatingFromSocket.current = false;
       return;
     }
-    localStorage.setItem(`lingo_code_${roomId}`, value || "");
 
+    localStorage.setItem(`lingo_code_${roomId}`, value || "");
     setCode(value);
+
     if (roomId && user) {
       emitCodeChange(roomId, value, user.language);
     }
@@ -259,8 +291,15 @@ const EditorPage = () => {
     });
   };
 
-  // Get translation count
-  const translationCount = Object.keys(translations).length;
+  // Get active comments with translations
+  const activeTranslations = lastCommentsRef.current
+    .map((comment) => ({
+      ...comment,
+      translation: translations[comment.line],
+    }))
+    .filter((item) => item.translation);
+
+  const translationCount = activeTranslations.length;
 
   return (
     <div className="h-screen bg-[#191919] flex flex-col">
@@ -275,10 +314,11 @@ const EditorPage = () => {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           users={users}
-          user={user}
+          user={user ? { ...user, roomId } : null}
           translations={translations}
           isTranslating={isTranslating}
           translationProgress={translationProgress}
+          setIsHistoryOpen={setIsHistoryOpen}
         />
 
         {/* Editor */}
@@ -305,47 +345,44 @@ const EditorPage = () => {
           />
 
           {/* Floating translation panel - Notion-style */}
-          <AnimatePresence>
-            {translationCount > 0 && (
-              <motion.div
-                initial={{ opacity: 0, x: 20, y: -20 }}
-                animate={{ opacity: 1, x: 0, y: 0 }}
-                exit={{ opacity: 0, x: 20, y: -20 }}
-                transition={{ type: "spring", damping: 30, stiffness: 400 }}
-                className="absolute top-6 right-6 w-96 bg-[#1e1e1e] backdrop-blur-2xl border border-white/5 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
-                  <h3 className="text-white/90 font-medium flex items-center gap-2.5 text-sm tracking-tight">
-                    <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                      <Languages className="w-4 h-4 text-violet-400" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span>Live Translations</span>
-                      <span className="text-[11px] text-gray-500 font-normal">
-                        {translationCount} active
-                      </span>
-                    </div>
-                  </h3>
-                  <button
-                    onClick={() => dispatch(clearTranslations())}
-                    className="text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all duration-200 p-2 rounded-lg"
-                    title="Clear all translations"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+          {!isHistoryOpen && (
+            <AnimatePresence>
+              {translationCount > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20, y: -20 }}
+                  animate={{ opacity: 1, x: 0, y: 0 }}
+                  exit={{ opacity: 0, x: 20, y: -20 }}
+                  transition={{ type: "spring", damping: 30, stiffness: 400 }}
+                  className="absolute top-6 right-6 w-96 bg-[#1e1e1e] backdrop-blur-2xl border border-white/5 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
+                    <h3 className="text-white/90 font-medium flex items-center gap-2.5 text-sm tracking-tight">
+                      <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                        <Languages className="w-4 h-4 text-violet-400" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span>Live Translations</span>
+                        <span className="text-[11px] text-gray-500 font-normal">
+                          {translationCount} active
+                        </span>
+                      </div>
+                    </h3>
+                    <button
+                      onClick={() => dispatch(clearTranslations())}
+                      className="text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all duration-200 p-2 rounded-lg"
+                      title="Clear current translations"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
 
-                {/* Content */}
-                <div className="max-h-[65vh] overflow-y-auto px-4 py-3 space-y-3 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
-                  <AnimatePresence mode="popLayout">
-                    {lastCommentsRef.current.map((comment, idx) => {
-                      const translation = translations[comment.line];
-                      if (!translation) return null;
-
-                      return (
+                  {/* Content */}
+                  <div className="max-h-[65vh] overflow-y-auto px-4 py-3 space-y-3 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+                    <AnimatePresence mode="popLayout">
+                      {activeTranslations.map((item, idx) => (
                         <motion.div
-                          key={idx}
+                          key={`${item.line}-${idx}`}
                           layout
                           initial={{ opacity: 0, scale: 0.95, y: -10 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -362,7 +399,7 @@ const EditorPage = () => {
                           <div className="flex items-center gap-2 mb-3">
                             <div className="px-2 py-1 rounded-md bg-white/5 border border-white/5">
                               <span className="text-gray-500 font-mono text-[10px] font-medium tracking-wider">
-                                LINE {comment.line + 1}
+                                LINE {item.line + 1}
                               </span>
                             </div>
                           </div>
@@ -376,7 +413,7 @@ const EditorPage = () => {
                               </span>
                             </div>
                             <p className="text-gray-300 text-sm leading-relaxed pl-3">
-                              {comment.text}
+                              {item.text}
                             </p>
                           </div>
 
@@ -389,17 +426,73 @@ const EditorPage = () => {
                               </span>
                             </div>
                             <p className="text-violet-200 text-sm leading-relaxed pl-3 font-medium">
-                              {translation}
+                              {item.translation}
                             </p>
                           </div>
                         </motion.div>
-                      );
-                    })}
-                  </AnimatePresence>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
+
+          {/* History view when sidebar is open */}
+          {isHistoryOpen && (
+            <div className="absolute top-6 right-6 w-96 bg-[#1e1e1e] backdrop-blur-2xl border border-white/5 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden">
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
+                <div>
+                  <h3 className="text-white/90 font-medium text-sm">
+                    Translation History
+                  </h3>
+                  <p className="text-gray-500 text-xs mt-1">
+                    {translationHistory.length} total translations
+                  </p>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <button
+                  onClick={() => setIsHistoryOpen(false)}
+                  className="text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-all duration-200 p-2 rounded-lg"
+                  title="Clear current translations"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="max-h-[65vh] overflow-y-auto px-4 py-3 space-y-2">
+                {translationHistory.length === 0 ? (
+                  <p className="text-gray-500 text-sm text-center py-8">
+                    No translation history yet
+                  </p>
+                ) : (
+                  <AnimatePresence>
+                    {translationHistory.map((item, idx) => (
+                      <motion.div
+                        key={`history-${idx}`}
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="p-3 bg-white/[0.02] border border-white/5 rounded-lg"
+                      >
+                        <div className="text-xs text-gray-500 mb-2">
+                          Line {item.line + 1}
+                        </div>
+                        <div className="text-sm text-gray-300 mb-1">
+                          {item.originalText}
+                        </div>
+                        <div className="text-sm text-violet-200">
+                          {item.translatedText}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Cursor indicators - Notion-style */}
           <AnimatePresence>

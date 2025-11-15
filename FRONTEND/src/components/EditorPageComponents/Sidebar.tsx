@@ -1,16 +1,23 @@
 import { AnimatePresence, motion } from "framer-motion";
 import React from "react";
-import { Languages } from "lucide-react";
-import { useDispatch } from "react-redux";
-import type { RootDispatch } from "../../store";
+import { Languages, History, X } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import type { RootDispatch, RootState } from "../../store";
 import { getTranslationHistory } from "../../store/slice/translationSlice";
 
 interface SidebarProps {
   users: Array<{ name: string; language: string; socketId?: string }>;
-  user: { name: string; language: string; socketId?: string } | null;
-  translations: Map<number, string>;
+  user: {
+    name: string;
+    language: string;
+    socketId?: string;
+    clientId?: string;
+    roomId?: string;
+  } | null;
+  translations: Record<number, string>;
   isTranslating: boolean;
   translationProgress: number;
+  setIsHistoryOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -19,11 +26,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
   translations,
   isTranslating,
   translationProgress,
+  setIsHistoryOpen,
 }) => {
   const dispatch: RootDispatch = useDispatch();
+  const { loading, error, history } = useSelector(
+    (state: RootState) => state.translation
+  );
+
+  const translationCount = Object.keys(translations).length;
+  const [showHistory, setShowHistory] = React.useState(false);
+
   const handleGetTranslationHistory = async () => {
-    await dispatch(getTranslationHistory({ roomId, clientId: user.clientId! }));
+    if (!user?.roomId || !user?.clientId) {
+      console.error("Missing roomId or clientId");
+      return;
+    }
+
+    try {
+      await dispatch(
+        getTranslationHistory({
+          roomId: user.roomId,
+          clientId: user.clientId,
+        })
+      ).unwrap();
+      setShowHistory(true);
+      setIsHistoryOpen(true);
+    } catch (err) {
+      console.error("Failed to load translation history:", err);
+    }
   };
+
   return (
     <aside className="w-64 bg-[#202020]/80 backdrop-blur-sm border-r border-white/8 p-4 overflow-y-auto">
       <h3 className="text-[13px] font-semibold text-gray-300 mb-3 tracking-tight">
@@ -43,27 +75,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="text-[12px] text-gray-400">{user?.language}</div>
         </motion.div>
 
-        {/* Other users */}
-        <AnimatePresence>
-          {users.map((u, idx) => {
-            return (
-              <motion.div
-                key={`${u.name}-${idx}`}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ delay: idx * 0.05 }}
-                className="p-2.5 bg-[#191919]/60 border border-white/8 rounded-lg transition-all duration-200 hover:border-white/12 hover:bg-[#1c1c1c]"
-              >
-                <div className="font-medium text-[13px] text-white/95 mb-0.5">
-                  {u.name}
-                </div>
-                <div className="text-[12px] text-gray-400">{u.language}</div>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-
         {users.length === 0 && (
           <div className="text-center py-6 text-gray-500 text-[13px]">
             No other users yet
@@ -73,7 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Translation info */}
       <AnimatePresence>
-        {translations.size > 0 && (
+        {translationCount > 0 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
@@ -85,7 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Live Translations
             </h3>
             <div className="text-[12px] text-gray-400 mb-1">
-              {translations.size} comment(s) translated
+              {translationCount} comment(s) translated
             </div>
             <div className="text-[12px] text-violet-400">
               Updates automatically
@@ -93,6 +104,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Translation History Button */}
+      <div className="mt-5 pt-5 border-t border-white/6">
+        <button
+          onClick={handleGetTranslationHistory}
+          disabled={loading || !user?.roomId || !user?.clientId}
+          className="w-full p-2.5 bg-violet-500/10 hover:bg-violet-500/15 border border-violet-500/20 hover:border-violet-500/30 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group"
+        >
+          <div className="flex items-center justify-center gap-2">
+            <History className="w-4 h-4 text-violet-400 group-hover:scale-110 transition-transform" />
+            <span className="text-[13px] font-medium text-violet-300">
+              {loading ? "Loading..." : "Load History"}
+            </span>
+          </div>
+        </button>
+
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-2 text-[11px] text-red-400 text-center"
+          >
+            {error}
+          </motion.div>
+        )}
+      </div>
 
       {/* Progress bar */}
       <AnimatePresence>
@@ -116,7 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 initial={{ width: 0 }}
                 animate={{ width: `${translationProgress}%` }}
                 transition={{ duration: 0.3, ease: "easeOut" }}
-                className="bg-linear-to-r from-violet-500 to-purple-500 h-full"
+                className="bg-gradient-to-r from-violet-500 to-purple-500 h-full"
               />
             </div>
           </motion.div>

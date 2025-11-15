@@ -34,7 +34,7 @@ export const translateBatch = createAsyncThunk<
 );
 
 export const getTranslationHistory = createAsyncThunk<
-  TranslationResult[],
+  any, // Changed to any since API returns {success, translations}
   { roomId: string; clientId: string },
   { rejectValue: { error: string } }
 >(
@@ -42,8 +42,18 @@ export const getTranslationHistory = createAsyncThunk<
   async ({ roomId, clientId }, { rejectWithValue }) => {
     try {
       const data = await getTranslationHistoryApi(roomId, clientId);
-      return data;
+      console.log("📥 Translation history API response:", data);
+      console.log(
+        "📥 Response type:",
+        typeof data,
+        "Is array:",
+        Array.isArray(data)
+      );
+
+      // Return the translations array from the response
+      return data.translations || data;
     } catch (err: any) {
+      console.error("❌ Translation history API error:", err);
       return rejectWithValue({
         error: err.response?.data || "Failed to fetch translation history",
       });
@@ -122,14 +132,35 @@ const translationSlice = createSlice({
       .addCase(getTranslationHistory.fulfilled, (state, action) => {
         state.loading = false;
 
-        // Convert array to plain object instead of Map
+        console.log("✅ Processing translation history:", action.payload);
+
+        // Check if payload exists and is an array
+        if (!action.payload || !Array.isArray(action.payload)) {
+          console.warn("No valid translation history data received");
+          state.translations = {};
+          state.history = [];
+          return;
+        }
+
+        // Store the raw history
+        state.history = action.payload;
+
+        // The API returns objects with originalText and translatedText
+        // We need to convert this to line-based translations
+        // Since we don't have line numbers in the API response,
+        // we'll create a mapping based on the originalText as a hash
         const translations: Record<number, string> = {};
-        action.payload.forEach((item) => {
-          translations[item.line] = item.text;
+
+        action.payload.forEach((item: any, index: number) => {
+          // Use index as the line number temporarily
+          // You might want to add line number to your API response
+          if (item.translatedText) {
+            translations[index] = item.translatedText;
+          }
         });
 
         state.translations = translations;
-        state.history = action.payload;
+        console.log("📝 Translations stored:", translations);
       })
       .addCase(getTranslationHistory.rejected, (state, action) => {
         state.loading = false;

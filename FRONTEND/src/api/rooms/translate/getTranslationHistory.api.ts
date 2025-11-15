@@ -9,7 +9,7 @@ export const getTranslationHistoryApi = async (
       roomId,
       clientId,
     });
-    return response.data;
+    return response.data.translations;
   } catch (error) {
     console.error(error);
     throw error;
