@@ -12,6 +12,7 @@ export const joinRoomApi = async (
     });
     return { roomId: response.data.roomId, user: { name, language } };
   } catch (error) {
+    console.error("Join Room API error:", error);
     throw error;
   }
 };
