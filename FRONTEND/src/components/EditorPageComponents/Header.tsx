@@ -37,7 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-2 px-2.5 py-1.5 bg-[#191919]/60 rounded-md border border-white/8 hover:border-white/12 transition-colors">
           <Users className="w-3.5 h-3.5 text-blue-400" />
           <span className="text-[13px] text-gray-300 font-medium">
-            {users.length + 1}
+            {users.length}
           </span>
         </div>
 

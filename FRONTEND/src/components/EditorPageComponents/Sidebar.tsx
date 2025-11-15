@@ -23,6 +23,8 @@ interface SidebarProps {
   isTranslating: boolean;
   translationProgress: number;
   setIsHistoryOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  detectedCommentsCount: number;
+  onTranslate: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -32,6 +34,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isTranslating,
   translationProgress,
   setIsHistoryOpen,
+  detectedCommentsCount,
+  onTranslate,
 }) => {
   const dispatch: RootDispatch = useDispatch();
 
@@ -146,6 +150,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
+        {/* Translate Button */}
+        <AnimatePresence>
+          {detectedCommentsCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              className="space-y-2"
+            >
+              <button
+                onClick={onTranslate}
+                disabled={isTranslating}
+                className="w-full group relative px-4 py-3 bg-gradient-to-r from-violet-500/10 to-purple-500/10 hover:from-violet-500/15 hover:to-purple-500/15 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden border border-violet-500/20 hover:border-violet-500/30"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-violet-500/20 group-hover:bg-violet-500/30 flex items-center justify-center flex-shrink-0 transition-colors">
+                      <Languages className="w-4 h-4 text-violet-400 group-hover:scale-110 transition-transform duration-200" />
+                    </div>
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-semibold text-white/90 group-hover:text-white transition-colors">
+                        {isTranslating
+                          ? "Translating..."
+                          : "Translate Comments"}
+                      </span>
+                      <span className="text-[10px] text-white/40 font-medium">
+                        {detectedCommentsCount} comment
+                        {detectedCommentsCount !== 1 ? "s" : ""} found
+                      </span>
+                    </div>
+                  </div>
+                  {!isTranslating && (
+                    <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center">
+                      <span className="text-[10px] font-bold text-violet-400">
+                        {detectedCommentsCount}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Shine effect on hover */}
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent"
+                  initial={{ x: "-100%" }}
+                  whileHover={{ x: "100%" }}
+                  transition={{ duration: 0.6 }}
+                />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Translation info */}
         <AnimatePresence>
           {translationCount > 0 && (
@@ -157,11 +214,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="px-3 py-3 bg-white/[0.02] rounded-lg border border-white/[0.04]"
             >
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 rounded-md bg-violet-500/10 flex items-center justify-center flex-shrink-0">
-                  <Languages className="w-3.5 h-3.5 text-violet-400" />
+                <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                  <Languages className="w-3.5 h-3.5 text-emerald-400" />
                 </div>
                 <h3 className="text-xs font-semibold text-white/90 tracking-tight">
-                  Live Translations
+                  Active Translations
                 </h3>
               </div>
               <div className="pl-8 space-y-1">
@@ -170,9 +227,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   translated
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-1 h-1 rounded-full bg-violet-400 animate-pulse"></div>
-                  <div className="text-xs text-violet-400/80 font-medium">
-                    Auto-updating
+                  <div className="w-1 h-1 rounded-full bg-emerald-400"></div>
+                  <div className="text-xs text-emerald-400/80 font-medium">
+                    Ready to view
                   </div>
                 </div>
               </div>
@@ -188,8 +245,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-full group relative px-3 py-2.5 bg-white/[0.03] hover:bg-white/[0.06] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed overflow-hidden"
           >
             <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-md bg-violet-500/10 group-hover:bg-violet-500/15 flex items-center justify-center flex-shrink-0 transition-colors">
-                <History className="w-3.5 h-3.5 text-violet-400 group-hover:scale-110 transition-transform duration-200" />
+              <div className="w-6 h-6 rounded-md bg-blue-500/10 group-hover:bg-blue-500/15 flex items-center justify-center flex-shrink-0 transition-colors">
+                <History className="w-3.5 h-3.5 text-blue-400 group-hover:scale-110 transition-transform duration-200" />
               </div>
               <span className="text-sm font-medium text-white/80 group-hover:text-white/90 transition-colors">
                 {loading ? "Loading..." : "Translation History"}
@@ -197,7 +254,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             {/* Hover effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-violet-500/0 via-violet-500/5 to-violet-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/5 to-blue-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
           </button>
 
           {error && (

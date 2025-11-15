@@ -127,22 +127,21 @@ export const removeAllListeners = () => {
 };
 export const getSocketId = () => socket?.id;
 
-export const emitTranslateBatch = (
-  texts: string[],
-  targetLanguage: string,
-  sourceLanguage: string = "auto",
-  roomId: string,
-  clientId?: string
-) => {
-  socket?.emit("translate:batch", {
-    texts,
-    targetLanguage,
-    sourceLanguage,
-    roomId,
-    clientId, // pass clientId
-  });
-};
+export const emitTranslateBatch = (texts: string[], roomId: string) => {
+  const socket = getSocket();
+  if (!socket) return;
 
+  // Get clientId from saved user
+  const savedUser = localStorage.getItem("lingo_user");
+  const clientId = savedUser ? JSON.parse(savedUser).clientId : undefined;
+
+  if (!clientId) {
+    console.error("Cannot emit translate:batch — missing clientId");
+    return;
+  }
+
+  socket.emit("translate:batch", { texts, roomId, clientId });
+};
 export const onTranslateStart = (
   callback: (data: { total: number }) => void
 ) => {

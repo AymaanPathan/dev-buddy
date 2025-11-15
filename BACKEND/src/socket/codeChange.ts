@@ -1,7 +1,7 @@
 import { Socket } from "socket.io";
 import { RoomModel } from "../schema/Room.model";
 
-export const codeChange = (socket: Socket) => {
+export const codeChange = (io: any, socket: Socket) => {
   socket.on(
     "code-change",
     async ({
@@ -15,8 +15,8 @@ export const codeChange = (socket: Socket) => {
     }) => {
       if (!roomId) return;
       // broadcast to others
-      socket.to(roomId).emit("code-update", { code, language });
-      // persist to DB
+      io.to(roomId).emit("code-update", code);
+
       await RoomModel.findOneAndUpdate(
         { roomId },
         { currentCode: code, updatedAt: new Date() },

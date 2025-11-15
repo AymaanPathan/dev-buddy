@@ -1,6 +1,7 @@
 import { Socket, Server } from "socket.io";
 import { RoomModel } from "../schema/Room.model";
 import { UserModel } from "../schema/User.model";
+import { getLanguageCode } from "../utils/getLanCode.utils";
 
 export const joinRoom = (io: Server, socket: Socket) => {
   socket.on(
@@ -61,6 +62,7 @@ export const joinRoom = (io: Server, socket: Socket) => {
 
       // --- Add socket to room ---
       socket.join(roomId);
+      socket.data.language = getLanguageCode(language);
 
       // --- Send initial data to the joining user ---
       socket.emit("initial-code", room.currentCode);
