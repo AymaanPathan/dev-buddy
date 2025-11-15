@@ -1,4 +1,3 @@
-// backend/socket/joinRoom.ts
 import { Socket } from "socket.io";
 import { RoomModel } from "../schema/Room.model";
 
@@ -14,7 +13,6 @@ export const joinRoom = (socket: Socket) => {
     const { roomId, name, language } = payload;
 
     try {
-      // Find room in MongoDB
       const room = await RoomModel.findOne({ roomId });
 
       if (!room) {
@@ -23,53 +21,69 @@ export const joinRoom = (socket: Socket) => {
         return;
       }
 
-      // Join socket.io room
       socket.join(roomId);
       socket.data.name = name;
       socket.data.language = language;
       console.log(`✅ Socket ${socket.id} joined room ${roomId}`);
 
-      // Check if user already exists (by name)
-      const existingUserIndex = room.users.findIndex((u) => u.name === name);
+      const existingUser = room.users.find((u) => u.name === name);
 
-      if (existingUserIndex !== -1) {
-        // Update socketId if user rejoins (e.g., navigating from lobby to editor)
-        console.log(`♻️ User ${name} rejoined, updating socket ID`);
-        room.users[existingUserIndex].socketId = socket.id;
+      let updatedRoom;
+
+      if (existingUser) {
+        console.log(`♻️ User ${name} rejoined, updating socketId`);
+
+        updatedRoom = await RoomModel.findOneAndUpdate(
+          { roomId, "users.name": name },
+          {
+            $set: {
+              "users.$.socketId": socket.id,
+              "users.$.language": language,
+            },
+          },
+          { new: true }
+        );
       } else {
-        // Add new user
-        console.log(`✅ Adding new user ${name} to room ${roomId}`);
-        room.users.push({
-          socketId: socket.id,
-          name,
-          language,
-        });
+        console.log(`➕ Adding new user ${name} to room ${roomId}`);
 
-        // Notify OTHER users that someone new joined (only for truly new users, not rejoins)
+        updatedRoom = await RoomModel.findOneAndUpdate(
+          { roomId },
+          {
+            $addToSet: {
+              users: {
+                socketId: socket.id,
+                name,
+                language,
+              },
+            },
+          },
+          { new: true }
+        );
+
         socket.to(roomId).emit("user-joined", { name, language });
       }
 
-      await room.save();
+      if (!updatedRoom) {
+        console.error("❌ Failed to update room");
+        socket.emit("error", "Failed to update room");
+        return;
+      }
 
-      // Send initial code to the joining user
-      socket.emit("initial-code", room.code || "// Start coding together...\n");
+      socket.emit(
+        "initial-code",
+        updatedRoom.code || "// Start coding together...\n"
+      );
       console.log(`📝 Sent initial code to ${name}`);
 
-      // Get all users EXCEPT the current one for the users list
-      const otherUsers = room.users
+      const otherUsers = updatedRoom.users
         .filter((u) => u.socketId !== socket.id)
         .map((u) => ({ name: u.name, language: u.language }));
 
-      console.log(`📤 Sending ${otherUsers.length} other users to ${name}`);
-
-      // Send the list of other users to the newly joined user
       socket.emit("room-users-list", otherUsers);
 
-      // Get creator (first user)
-      const creatorSocketId = room.users[0]?.socketId || "";
+      const creatorSocketId = updatedRoom.users[0]?.socketId || "";
 
-      // Update lobby view for all users (for those still in lobby)
-      const allUsers = room.users.map((u) => ({
+      const allUsers = updatedRoom.users.map((u) => ({
         name: u.name,
         language: u.language,
         socketId: u.socketId,

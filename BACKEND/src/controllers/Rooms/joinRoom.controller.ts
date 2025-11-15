@@ -1,5 +1,8 @@
 import { RoomModel } from "../../schema/Room.model";
+import { v4 as uuidv4 } from "uuid";
+
 import { Request, Response } from "express";
+import { UserModel } from "../../schema/User.model";
 export const joinRoom = async (req: Request, res: Response) => {
   console.log("🔥 joinRoom called");
 
@@ -19,27 +22,26 @@ export const joinRoom = async (req: Request, res: Response) => {
     }
 
     // Check if user already exists in room (prevent duplicates)
-    const userExists = room.users.some((user) => user.name === name);
-
-    if (!userExists) {
-      // Add user to room
+    const exists = room.users.some((u) => u.name === name);
+    if (!exists) {
+      const userId = uuidv4();
       room.users.push({
+        userId,
         name,
         language,
         socketId: "",
+        isActive: false,
       });
       await room.save();
+      await UserModel.updateOne(
+        { userId },
+        { userId, name, language, currentRoomId: roomId },
+        { upsert: true }
+      );
     }
-
-    return res.status(200).json({
-      success: true,
-      room,
-      message: `Joined room ${roomId}`,
-    });
+    return res.json({ success: true, room });
   } catch (error: any) {
     console.error("Error joining room:", error);
     return res.status(500).json({ error: "Failed to join room" });
   }
 };
-
-

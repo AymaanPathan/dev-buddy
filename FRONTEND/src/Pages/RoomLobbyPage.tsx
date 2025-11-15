@@ -111,22 +111,6 @@ const RoomLobbyPage = () => {
                 readOnly
                 className="flex-1 px-4 py-3 bg-[#141414] border border-white/[0.06] rounded-xl text-gray-300 text-sm font-mono"
               />
-              <button
-                onClick={copyRoomLink}
-                className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-colors flex items-center gap-2"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    Copy
-                  </>
-                )}
-              </button>
             </div>
 
             <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
