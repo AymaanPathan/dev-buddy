@@ -434,7 +434,7 @@ CodeBridge automatically detects and translates:
 - [ ] Syntax highlighting for 20+ languages
 **⭐ Star this repo if you found it helpful!**
 
-Made with ❤️ by developers, for developers
+Made by Aymaan Pathan
 
 
 </div>
