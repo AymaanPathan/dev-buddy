@@ -58,6 +58,39 @@ interface ActiveTranslation {
   translation: string;
 }
 
+// Map programming languages to Monaco editor language identifiers
+const getMonacoLanguage = (programmingLanguage: string): string => {
+  const languageMap: Record<string, string> = {
+    JavaScript: "javascript",
+    TypeScript: "typescript",
+    Python: "python",
+    Java: "java",
+    "C++": "cpp",
+    "C#": "csharp",
+    Go: "go",
+    Rust: "rust",
+    Ruby: "ruby",
+    PHP: "php",
+    Swift: "swift",
+    Kotlin: "kotlin",
+    Dart: "dart",
+    Scala: "scala",
+    R: "r",
+    "HTML/CSS": "html",
+    SQL: "sql",
+    "Shell/Bash": "shell",
+    Perl: "perl",
+    Haskell: "haskell",
+    Elixir: "elixir",
+    Clojure: "clojure",
+    Lua: "lua",
+    MATLAB: "matlab",
+    "Objective-C": "objective-c",
+  };
+
+  return languageMap[programmingLanguage] || "javascript";
+};
+
 const EditorPage = () => {
   const dispatch: RootDispatch = useDispatch();
   const { roomId } = useParams<{ roomId: string }>();
@@ -69,6 +102,7 @@ const EditorPage = () => {
   );
 
   const [code, setCode] = useState("");
+  const [editorLanguage, setEditorLanguage] = useState("javascript");
   const editorRef = useRef<any>(null);
   const isUpdatingFromSocket = useRef(false);
   const lastCommentsRef = useRef<Comment[]>([]);
@@ -101,6 +135,12 @@ const EditorPage = () => {
 
     dispatch(setUser(finalUser));
     dispatch(setRoom(finalRoomId));
+
+    // Set editor language based on user's programming language
+    if (finalUser.programmingLanguage) {
+      const monacoLang = getMonacoLanguage(finalUser.programmingLanguage);
+      setEditorLanguage(monacoLang);
+    }
 
     const cached = localStorage.getItem(`lingo_code_${finalRoomId}`);
     if (cached) setCode(cached);
@@ -182,7 +222,7 @@ const EditorPage = () => {
     translationTimeoutRef.current = setTimeout(() => {
       const comments = extractComments(
         currentCode,
-        user?.language || "javascript"
+        editorLanguage // Use the editor language for comment detection
       );
       lastCommentsRef.current = comments;
 
@@ -194,10 +234,10 @@ const EditorPage = () => {
       }
 
       const commentTexts = comments.map((c) => c.text);
-      const commentLines = comments.map((c) => c.line); // ✅ Get lines
+      const commentLines = comments.map((c) => c.line);
 
       if (roomId) {
-        emitTranslateBatch(commentTexts, roomId, commentLines); // ✅ Pass lines
+        emitTranslateBatch(commentTexts, roomId, commentLines);
       }
     }, 1000);
   };
@@ -216,7 +256,6 @@ const EditorPage = () => {
 
       setTranslationProgress(data.progress);
 
-      // ✅ Now we have the line directly from server!
       if (data.line >= 0) {
         console.log("✅ Dispatching translation with line:", data.line);
 
@@ -291,7 +330,8 @@ const EditorPage = () => {
         <main className="flex-1 relative bg-[#1e1e1e]">
           <Editor
             height="100%"
-            defaultLanguage="javascript"
+            defaultLanguage={editorLanguage}
+            language={editorLanguage}
             theme="vs-dark"
             value={code}
             onChange={handleCodeChange}

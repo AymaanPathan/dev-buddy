@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, Zap, Users, Globe2, ArrowRight } from "lucide-react";
+import { Sparkles, Zap, Users, Globe2, ArrowRight, Code2 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import type { RootDispatch, RootState } from "../store";
@@ -13,6 +13,7 @@ const CreateRoomPage = () => {
 
   const [displayName, setDisplayName] = useState("");
   const [preferredLanguage, setPreferredLanguage] = useState("");
+  const [programmingLanguage, setProgrammingLanguage] = useState("");
 
   const languages = [
     "English",
@@ -29,18 +30,51 @@ const CreateRoomPage = () => {
     "Italian",
   ];
 
+  const programmingLanguages = [
+    "JavaScript",
+    "TypeScript",
+    "Python",
+    "Java",
+    "C++",
+    "C#",
+    "Go",
+    "Rust",
+    "Ruby",
+    "PHP",
+    "Swift",
+    "Kotlin",
+    "Dart",
+    "Scala",
+    "R",
+    "HTML/CSS",
+    "SQL",
+    "Shell/Bash",
+    "Perl",
+    "Haskell",
+    "Elixir",
+    "Clojure",
+    "Lua",
+    "MATLAB",
+    "Objective-C",
+  ];
+
   const handleCreateRoom = async () => {
-    if (!displayName || !preferredLanguage) return;
+    if (!displayName || !preferredLanguage || !programmingLanguage) return;
 
     try {
       const result = await dispatch(
-        createRoom({ name: displayName, language: preferredLanguage })
+        createRoom({
+          name: displayName,
+          language: preferredLanguage,
+          programmingLanguage: programmingLanguage,
+        })
       ).unwrap();
       localStorage.setItem(
         "lingo_user",
         JSON.stringify({
           name: displayName,
           language: preferredLanguage,
+          programmingLanguage: programmingLanguage,
           clientId: getClientId(),
         })
       );
@@ -141,10 +175,61 @@ const CreateRoomPage = () => {
                 </div>
               </div>
 
+              {/* Programming Language with refined select */}
+              <div className="space-y-2">
+                <label className="block text-[13px] font-medium text-gray-300/90 tracking-tight">
+                  Programming language
+                </label>
+                <div className="relative">
+                  <select
+                    value={programmingLanguage}
+                    onChange={(e) => setProgrammingLanguage(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#191919]/60 border border-white/[0.08] rounded-lg text-[15px] text-white/95 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 focus:bg-[#1c1c1c] transition-all duration-200 appearance-none cursor-pointer hover:bg-[#1c1c1c]/80 hover:border-white/[0.12]"
+                  >
+                    <option
+                      value=""
+                      disabled
+                      className="bg-[#202020] text-gray-400"
+                    >
+                      Select programming language
+                    </option>
+                    {programmingLanguages.map((lang) => (
+                      <option
+                        key={lang}
+                        value={lang}
+                        className="bg-[#202020] text-white py-2"
+                      >
+                        {lang}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <svg
+                      className="w-4 h-4 text-gray-400 transition-colors"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
               {/* Premium Create Button */}
               <button
                 onClick={handleCreateRoom}
-                disabled={!displayName || !preferredLanguage || loading}
+                disabled={
+                  !displayName ||
+                  !preferredLanguage ||
+                  !programmingLanguage ||
+                  loading
+                }
                 className="w-full mt-6 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:bg-[#2a2a2a] disabled:cursor-not-allowed text-white disabled:text-gray-500/80 font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:shadow-xl disabled:shadow-none text-[15px] group"
               >
                 <span>{loading ? "Creating..." : "Create room"}</span>

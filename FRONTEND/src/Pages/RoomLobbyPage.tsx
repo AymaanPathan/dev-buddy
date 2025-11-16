@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { Copy, Check, Users, Play, Sparkles } from "lucide-react";
+import {
+  Copy,
+  Check,
+  Users,
+  Play,
+  Sparkles,
+  Code2,
+  Globe2,
+} from "lucide-react";
 import type { RootState } from "../store";
 import {
   connectSocket,
@@ -17,6 +25,7 @@ interface LobbyUser {
   clientId: string | undefined;
   name: string;
   language: string;
+  programmingLanguage?: string;
   socketId: string;
 }
 
@@ -35,13 +44,14 @@ const RoomLobbyPage = () => {
     const mappedUsers: LobbyUser[] = usersArray.map((u, idx) => ({
       name: u.name,
       language: u.language,
+      programmingLanguage: u.programmingLanguage,
       socketId: u.socketId || `client-${u.clientId}`,
       clientId: u.clientId,
     }));
 
     setUsers(mappedUsers);
 
-    // 🔥 Use clientId instead of socketId
+    // Use clientId instead of socketId
     setIsCreator(mappedUsers[0]?.clientId === user?.clientId);
   };
 
@@ -126,6 +136,22 @@ const RoomLobbyPage = () => {
                 readOnly
                 className="flex-1 px-4 py-3 bg-[#141414] border border-white/[0.06] rounded-xl text-gray-300 text-sm font-mono"
               />
+              <button
+                onClick={copyRoomLink}
+                className="px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
             </div>
 
             <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
@@ -149,30 +175,46 @@ const RoomLobbyPage = () => {
               {users?.map((u, idx) => (
                 <div
                   key={u.socketId || `user-${idx}`}
-                  className="flex items-center justify-between p-4 bg-[#141414] border border-white/[0.06] rounded-xl"
+                  className="flex items-center justify-between p-4 bg-[#141414] border border-white/[0.06] rounded-xl hover:border-white/[0.12] transition-all duration-200"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-600 rounded-full flex items-center justify-center text-white font-semibold">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
                       {u?.name.charAt(0).toUpperCase()}
                     </div>
-                    <div>
-                      <div className="font-medium text-white flex items-center gap-2">
-                        {u?.name}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-white flex items-center gap-2 flex-wrap">
+                        <span className="truncate">{u?.name}</span>
                         {idx === 0 && (
-                          <span className="px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-xs rounded">
+                          <span className="px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-xs rounded whitespace-nowrap">
                             Host
                           </span>
                         )}
                         {u?.socketId === getSocket()?.id && (
-                          <span className="px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs rounded">
+                          <span className="px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs rounded whitespace-nowrap">
                             You
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-400">{u?.language}</div>
+
+                      {/* Language and Programming Language Display */}
+                      <div className="flex items-center gap-3 mt-1.5 text-sm">
+                        <div className="flex items-center gap-1.5 text-gray-400">
+                          <Globe2 className="w-3.5 h-3.5 text-blue-400" />
+                          <span>{u?.language}</span>
+                        </div>
+                        {u?.programmingLanguage && (
+                          <>
+                            <span className="text-gray-600">•</span>
+                            <div className="flex items-center gap-1.5 text-gray-400">
+                              <Code2 className="w-3.5 h-3.5 text-violet-400" />
+                              <span>{u?.programmingLanguage}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="w-2 h-2 bg-green-400 rounded-full" />
+                  <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0 ml-3" />
                 </div>
               ))}
 

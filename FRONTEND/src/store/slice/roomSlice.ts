@@ -5,13 +5,20 @@ import { joinRoomApi } from "../../api/rooms/joinRoom.api";
 
 export const createRoom = createAsyncThunk<
   any,
-  { name: string; language: string },
+  { name: string; language: string; programmingLanguage: string },
   { rejectValue: { error: string } }
 >(
   "room/createRoom",
-  async (payload: { name: string; language: string }, { rejectWithValue }) => {
+  async (
+    payload: { name: string; language: string; programmingLanguage: string },
+    { rejectWithValue }
+  ) => {
     try {
-      const response = await createRoomApi(payload.name, payload.language);
+      const response = await createRoomApi(
+        payload.name,
+        payload.language,
+        payload.programmingLanguage
+      );
       return response;
     } catch (err: any) {
       return rejectWithValue(
@@ -39,6 +46,7 @@ export const joinRoom = createAsyncThunk<
 interface User {
   clientId: string;
   name: string;
+  programmingLanguage: string;
   language: string;
   socketId?: string;
 }
@@ -47,6 +55,7 @@ interface RoomState {
   roomId: string | null;
   user: User | null;
   loading: boolean;
+  programmingLanguage: string | null;
   users: User[];
   error: string | null;
 }
@@ -54,6 +63,7 @@ interface RoomState {
 const initialState: RoomState = {
   roomId: null,
   user: null,
+  programmingLanguage: null,
   users: [],
   loading: false,
   error: null,
@@ -124,13 +134,7 @@ const roomSlice = createSlice({
   },
 });
 
-export const {
-  clearRoom,
-  setUsers,
-  addUser,
-  removeUser,
-  setUser, // ⭐ needed for restore
-  setRoom, // ⭐ needed for restore
-} = roomSlice.actions;
+export const { clearRoom, setUsers, addUser, removeUser, setUser, setRoom } =
+  roomSlice.actions;
 
 export default roomSlice.reducer;
