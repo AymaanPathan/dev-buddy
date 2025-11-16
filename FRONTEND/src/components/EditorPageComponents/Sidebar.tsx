@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import React from "react";
-import { Languages, History, X } from "lucide-react";
+import { Languages, History, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootDispatch, RootState } from "../../store";
 import { getTranslationHistory } from "../../store/slice/translationSlice";
@@ -64,6 +64,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       setIsHistoryOpen(true);
     } catch (err) {
       console.error("Failed to load translation history:", err);
+    }
+  };
+
+  const toggleHistory = () => {
+    if (!showHistory && history.length === 0) {
+      handleGetTranslationHistory();
+    } else {
+      setShowHistory(!showHistory);
+      setIsHistoryOpen(!showHistory);
     }
   };
 
@@ -237,20 +246,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </AnimatePresence>
 
-        {/* Translation History Button */}
+        {/* Translation History Section */}
         <div className="space-y-3">
           <button
-            onClick={handleGetTranslationHistory}
-            disabled={loading || !user?.roomId || !user?.clientId}
+            onClick={toggleHistory}
+            disabled={loading}
             className="w-full group relative px-3 py-2.5 bg-white/[0.03] hover:bg-white/[0.06] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed overflow-hidden"
           >
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-md bg-blue-500/10 group-hover:bg-blue-500/15 flex items-center justify-center flex-shrink-0 transition-colors">
-                <History className="w-3.5 h-3.5 text-blue-400 group-hover:scale-110 transition-transform duration-200" />
-              </div>
-              <span className="text-sm font-medium text-white/80 group-hover:text-white/90 transition-colors">
-                {loading ? "Loading..." : "Translation History"}
-              </span>
+            <div className="flex items-center justify-between gap-2.5">
+              {history.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-medium text-white/40 px-1.5 py-0.5 bg-white/5 rounded">
+                    {history.length}
+                  </span>
+                  {showHistory ? (
+                    <ChevronUp className="w-4 h-4 text-white/40" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-white/40" />
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Hover effect */}
@@ -267,6 +282,79 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="text-xs text-red-400 font-medium">{error}</div>
             </motion.div>
           )}
+
+          {/* History List */}
+          <AnimatePresence>
+            {showHistory && history.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                className="space-y-2 max-h-96 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10"
+              >
+                {history.map((item: any, index: number) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{
+                      duration: 0.3,
+                      delay: index * 0.05,
+                      ease: [0.16, 1, 0.3, 1],
+                    }}
+                    className="group bg-white/[0.02] hover:bg-white/[0.04] rounded-lg p-3 border border-white/[0.04] hover:border-white/[0.08] transition-all duration-200"
+                  >
+                    {/* Line number badge */}
+                    {item.line !== undefined && (
+                      <div className="mb-2">
+                        <span className="inline-block px-2 py-0.5 rounded bg-white/5 border border-white/5">
+                          <span className="text-gray-500 font-mono text-[10px] font-medium tracking-wider">
+                            LINE {item.line + 1}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Original Text */}
+                    <div className="mb-2 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1 h-1 rounded-full bg-gray-600"></div>
+                        <span className="text-gray-500 text-[9px] font-medium uppercase tracking-widest">
+                          Original
+                        </span>
+                      </div>
+                      <p className="text-gray-300 text-xs leading-relaxed pl-2.5">
+                        {item.originalText}
+                      </p>
+                    </div>
+
+                    {/* Translation */}
+                    <div className="space-y-1 pt-2 border-t border-white/5">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1 h-1 rounded-full bg-blue-500"></div>
+                        <span className="text-blue-400 text-[9px] font-medium uppercase tracking-widest">
+                          Translation
+                        </span>
+                      </div>
+                      <p className="text-blue-200 text-xs leading-relaxed pl-2.5 font-medium">
+                        {item.translatedText || item.text}
+                      </p>
+                    </div>
+
+                    {/* Timestamp if available */}
+                    {item.timestamp && (
+                      <div className="mt-2 pt-2 border-t border-white/5">
+                        <span className="text-[9px] text-white/30 font-medium">
+                          {new Date(item.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Progress bar */}
