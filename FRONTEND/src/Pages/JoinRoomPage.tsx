@@ -38,7 +38,6 @@ const JoinRoomPage = () => {
         roomId: paramRoomId,
         name: displayName,
         language: preferredLanguage,
-        clientId: getClientId(),
       })
     );
     localStorage.setItem(
