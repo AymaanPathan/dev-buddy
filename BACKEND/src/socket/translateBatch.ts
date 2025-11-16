@@ -3,9 +3,6 @@ import { lingo } from "../../src/utils/tran.util";
 import { TranslationCacheModel } from "../schema/TranslationCache.model";
 import crypto from "crypto";
 
-/**
- * Register batch translation handler with Lingo CLI
- */
 export const registerTranslateHandler = (io: Server, socket: Socket) => {
   socket.on(
     "translate:batch",
@@ -31,7 +28,6 @@ export const registerTranslateHandler = (io: Server, socket: Socket) => {
 
           s.emit("translate:start", { total });
 
-          // Check cache for all texts first
           const cacheResults = await Promise.all(
             texts.map(async (text, i) => {
               const hash = `${text}:${targetLanguage}:${roomId}:${clientId}`;
@@ -40,11 +36,9 @@ export const registerTranslateHandler = (io: Server, socket: Socket) => {
             })
           );
 
-          // Separate cached and uncached
           const cached = cacheResults.filter((r) => r.cached);
           const uncached = cacheResults.filter((r) => !r.cached);
 
-          // Emit cached results immediately
           for (const item of cached) {
             const lineNumber = lines?.[item.index] ?? -1;
             s.emit("translate:chunk", {
@@ -60,7 +54,6 @@ export const registerTranslateHandler = (io: Server, socket: Socket) => {
             });
           }
 
-          // Batch translate uncached texts
           if (uncached.length > 0) {
             try {
               const textsToTranslate = uncached.map((u) => u.text);
@@ -69,13 +62,11 @@ export const registerTranslateHandler = (io: Server, socket: Socket) => {
                 targetLocale: targetLanguage,
               });
 
-              // Save to cache and emit
               for (let i = 0; i < uncached.length; i++) {
                 const item = uncached[i];
                 const translatedText = translations[i] || item.text;
                 const lineNumber = lines?.[item.index] ?? -1;
 
-                // Save in cache
                 await TranslationCacheModel.create({
                   hash: item.hash,
                   originalText: item.text,
@@ -103,7 +94,6 @@ export const registerTranslateHandler = (io: Server, socket: Socket) => {
                 batchErr
               );
 
-              // Fallback: translate individually
               for (const item of uncached) {
                 const lineNumber = lines?.[item.index] ?? -1;
                 try {
@@ -162,15 +152,11 @@ export const registerTranslateHandler = (io: Server, socket: Socket) => {
   );
 };
 
-/**
- * Handle new comments with translation using Lingo CLI
- */
 export const newComment = (io: any, socket: Socket) => {
   socket.on("new-comment", async (payload) => {
     const { text, line, senderId, roomId } = payload;
     if (!text || !roomId || !senderId) return;
 
-    // Broadcast original comment to all users
     io.in(roomId).emit("comment:new", {
       text,
       line,
@@ -178,7 +164,6 @@ export const newComment = (io: any, socket: Socket) => {
       roomId,
     });
 
-    // Get all connected sockets in the room
     const clients = await io.in(roomId).fetchSockets();
 
     for (const clientSocket of clients) {
@@ -202,7 +187,6 @@ export const newComment = (io: any, socket: Socket) => {
             targetLocale: targetLanguage,
           });
 
-          // Save in cache
           await TranslationCacheModel.create({
             hash,
             originalText: text,
@@ -217,7 +201,6 @@ export const newComment = (io: any, socket: Socket) => {
         }
       }
 
-      // Send translated comment to the specific client
       clientSocket.emit("comment:translated", {
         text: translatedText,
         line,

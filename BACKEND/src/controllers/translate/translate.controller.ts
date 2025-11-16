@@ -1,9 +1,6 @@
 import { Request, Response } from "express";
 import { lingo } from "../../utils/tran.util";
 
-/**
- * Single text translation controller
- */
 export const translateController = async (req: Request, res: Response) => {
   try {
     const { text, targetLanguage, sourceLanguage = "auto" } = req.body;

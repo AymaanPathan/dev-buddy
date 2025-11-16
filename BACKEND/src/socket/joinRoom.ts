@@ -27,7 +27,6 @@ export const joinRoom = (io: Server, socket: Socket) => {
         return;
       }
 
-      // --- Update or insert user in room ---
       const userIndex = room.users.findIndex((u) => u.clientId === clientId);
 
       if (userIndex === -1) {
@@ -47,7 +46,6 @@ export const joinRoom = (io: Server, socket: Socket) => {
 
       await room.save();
 
-      // --- Update UserModel ---
       await UserModel.findOneAndUpdate(
         { clientId },
         {
@@ -60,18 +58,12 @@ export const joinRoom = (io: Server, socket: Socket) => {
         { upsert: true }
       );
 
-      // --- Add socket to room ---
       socket.join(roomId);
       socket.data.language = getLanguageCode(language);
 
-      // --- Send initial data to the joining user ---
       socket.emit("initial-code", room.currentCode);
       socket.emit("room-state", { code: room.currentCode, users: room.users });
-
-      // --- Notify others that a user joined ---
       socket.to(roomId).emit("user-joined", { name, language, clientId });
-
-      // --- Broadcast updated full user list to EVERYONE (including host) ---
       io.in(roomId).emit(
         "room-users-update",
         room.users.map((u) => ({
@@ -82,7 +74,6 @@ export const joinRoom = (io: Server, socket: Socket) => {
         }))
       );
 
-      // --- Send complete user list (with socketId) only to the joining user ---
       socket.emit(
         "room-users-list",
         room.users.map((u) => ({

@@ -1,4 +1,3 @@
-// controllers/translation.controller.ts
 import { Request, Response } from "express";
 import { TranslationCacheModel } from "../../schema/TranslationCache.model";
 

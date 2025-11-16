@@ -19,7 +19,6 @@ import {
   onUserJoined,
   onUserLeft,
   removeAllListeners,
-  getSocket,
   emitTranslateBatch,
   onTranslateStart,
   onTranslateChunk,

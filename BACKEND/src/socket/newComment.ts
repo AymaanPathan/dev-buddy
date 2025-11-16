@@ -1,14 +1,16 @@
-import { Socket } from "socket.io";
-import { TranslationCacheModel } from "../schema/TranslationCache.model";
+import { Socket, Server } from "socket.io";
+import { lingo } from "../../src/utils/tran.util";
 import crypto from "crypto";
-import { LingoDotDevEngine } from "lingo.dev/sdk";
+import { TranslationCacheModel } from "../schema/TranslationCache.model";
 
-const lingo = new LingoDotDevEngine({ apiKey: process.env.LINGO_API_KEY! });
-
-export const newComment = (io: any, socket: Socket) => {
+export const newComment = (io: Server, socket: Socket) => {
   socket.on("new-comment", async (payload) => {
     const { text, line, senderId, roomId } = payload;
-    if (!text || !roomId || !senderId) return;
+
+    if (!text || !roomId || !senderId) {
+      console.warn("⚠️ Invalid comment payload:", { text, roomId, senderId });
+      return;
+    }
 
     // Broadcast original comment to all users
     io.in(roomId).emit("comment:new", {
@@ -18,51 +20,81 @@ export const newComment = (io: any, socket: Socket) => {
       roomId,
     });
 
-    // Get all connected sockets in the room
-    const clients = await io.in(roomId).fetchSockets();
+    try {
+      const clients = await io.in(roomId).fetchSockets();
 
-    clients.forEach(async (clientSocket: any) => {
-      const targetLanguage = clientSocket.data.language;
-      const sourceLanguage = "auto";
+      await Promise.all(
+        clients.map(async (clientSocket) => {
+          try {
+            const targetLanguage = clientSocket.data.language || "en";
+            const sourceLanguage = "auto";
 
-      // Create a hash for caching
-      const hash = crypto
-        .createHash("sha256")
-        .update(`${text}:${targetLanguage}:${roomId}:${clientSocket.id}`)
-        .digest("hex");
+            const hash = crypto
+              .createHash("sha256")
+              .update(`${text}:${targetLanguage}:${roomId}:${clientSocket.id}`)
+              .digest("hex");
 
-      // Check cache
-      const cached = await TranslationCacheModel.findOne({ hash });
-      let translatedText = cached?.translatedText;
+            const cached = await TranslationCacheModel.findOne({ hash });
+            let translatedText = cached?.translatedText;
+            let fromCache = !!cached;
 
-      if (!translatedText) {
-        try {
-          translatedText = await lingo.localizeText(text, {
-            sourceLocale: sourceLanguage === "auto" ? null : sourceLanguage,
-            targetLocale: targetLanguage,
-          });
+            if (!translatedText) {
+              try {
+                translatedText = await lingo.localizeText(text, {
+                  sourceLocale:
+                    sourceLanguage === "auto" ? null : sourceLanguage,
+                  targetLocale: targetLanguage,
+                });
 
-          // Save in cache
-          await TranslationCacheModel.create({
-            hash,
-            originalText: text,
-            targetLang: targetLanguage,
-            translatedText,
-            roomId,
-            clientId: clientSocket.id,
-          });
-        } catch (err: any) {
-          translatedText = text; // fallback
-        }
-      }
+                await TranslationCacheModel.create({
+                  hash,
+                  originalText: text,
+                  targetLang: targetLanguage,
+                  translatedText,
+                  roomId,
+                  clientId: clientSocket.id,
+                }).catch((cacheErr) => {
+                  console.error(
+                    "Failed to save translation cache:",
+                    cacheErr.message
+                  );
+                });
 
-      // Send translated comment to the specific client
-      clientSocket.emit("comment:translated", {
-        text: translatedText,
-        line,
-        originalText: text,
-        senderId,
-      });
-    });
+                fromCache = false;
+              } catch (err: any) {
+                console.error(
+                  `❌ Translation failed for client ${clientSocket.id}:`,
+                  err.message
+                );
+                translatedText = text; // fallback
+              }
+            }
+
+            clientSocket.emit("comment:translated", {
+              text: translatedText,
+              line,
+              originalText: text,
+              senderId,
+              fromCache,
+            });
+          } catch (clientErr: any) {
+            console.error(
+              `❌ Error processing comment for client ${clientSocket.id}:`,
+              clientErr.message
+            );
+
+            clientSocket.emit("comment:translated", {
+              text,
+              line,
+              originalText: text,
+              senderId,
+              error: true,
+            });
+          }
+        })
+      );
+    } catch (err: any) {
+      console.error("❌ Error broadcasting comment translations:", err);
+    }
   });
 };
