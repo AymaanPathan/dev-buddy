@@ -436,6 +436,5 @@ CodeBridge automatically detects and translates:
 
 Made with ❤️ by developers, for developers
 
-[⬆ Back to Top](#-codebridge)
 
 </div>
