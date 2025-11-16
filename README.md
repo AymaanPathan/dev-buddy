@@ -37,7 +37,7 @@ They want to collaborate on a project, but:
 
 ## ✨ The Solution
 
-**CodeBuddy** is a real-time collaborative code editor that automatically translates code comments into each developer's native language—while keeping the code itself in standard English.
+**DevBuddy** is a real-time collaborative code editor that automatically translates code comments into each developer's native language—while keeping the code itself in standard English.
 
 Think **"Google Docs meets VS Code"** with built-in multilingual support.
 
