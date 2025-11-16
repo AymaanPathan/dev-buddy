@@ -41,7 +41,7 @@ They want to collaborate on a project, but:
 
 Think **"Google Docs meets VS Code"** with built-in multilingual support.
 
-### Why CodeBuddy?
+### Why DevBuddy?
 
 - 🌍 **Global Collaboration** - Work with developers worldwide, each in their native language
 - ⚡ **Real-Time Translation** - Comments are translated instantly as you type
