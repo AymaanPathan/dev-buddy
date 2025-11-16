@@ -15,8 +15,7 @@ export const codeChange = (io: any, socket: Socket) => {
     }) => {
       if (!roomId) return;
       // broadcast to others
-      io.to(roomId).emit("code-update", code);
-
+      socket.to(roomId).emit("code-update", code);
       await RoomModel.findOneAndUpdate(
         { roomId },
         { currentCode: code, updatedAt: new Date() },

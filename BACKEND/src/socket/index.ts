@@ -11,7 +11,7 @@ export const registerSocketEvents = (io: Server) => {
   io.on("connection", (socket: Socket) => {
     console.log("New user connected:", socket.id);
 
-    joinRoom(io, socket); // <-- pass io here
+    joinRoom(io, socket);
     startSession(socket);
     codeChange(io, socket);
     cursorMove(socket);

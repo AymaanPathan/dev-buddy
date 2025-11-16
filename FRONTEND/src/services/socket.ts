@@ -7,18 +7,30 @@ const SOCKET_URL = "http://localhost:5000";
 let socket: Socket | null = null;
 
 export const connectSocket = (): Socket => {
-  if (!socket) {
+  if (!socket || !socket.connected) {
+    if (socket) {
+      socket.connect();
+      return socket;
+    }
+
     socket = io(SOCKET_URL, {
       transports: ["websocket"],
       autoConnect: true,
+      reconnection: true, // ✅ Enable reconnection
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
     socket.on("connect", () => {
       console.log("✅ Connected to server:", socket?.id);
     });
 
-    socket.on("disconnect", () => {
-      console.log("❌ Disconnected from server");
+    socket.on("disconnect", (reason) => {
+      console.log("❌ Disconnected from server:", reason);
+    });
+
+    socket.on("reconnect", (attemptNumber) => {
+      console.log("🔄 Reconnected after", attemptNumber, "attempts");
     });
 
     socket.on("error", (error: string) => {
@@ -28,7 +40,6 @@ export const connectSocket = (): Socket => {
 
   return socket;
 };
-
 export const disconnectSocket = () => {
   if (socket) {
     socket.disconnect();

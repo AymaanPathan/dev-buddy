@@ -14,7 +14,7 @@ export const cursorMove = (socket: Socket) => {
     );
 
     socket.to(roomId).emit("cursor-update", {
-      socketId: socket.id,
+    socketId: socket.id,
       cursor,
       name: socket.data.name,
     });

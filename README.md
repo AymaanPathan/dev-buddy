@@ -126,7 +126,7 @@ Think **"Google Docs meets VS Code"** with built-in multilingual support.
 
 1. **👤 Create a Room**
    ```
-   User opens CodeBridge → Enters name
+   User opens Dev Buddy → Enters name
    → Selects preferred language (Hindi, Spanish, French, etc.)
    → Clicks "Create Room" → Room ID generated
    → Gets shareable room link
@@ -134,7 +134,7 @@ Think **"Google Docs meets VS Code"** with built-in multilingual support.
 
 2. **🔗 Join a Room**
    ```
-   Teammate receives room link → Opens CodeBridge
+   Teammate receives room link → Opens Dev Buddy
    → Enters their name → Selects their language
    → Enters room ID or clicks join link
    → Redirected to lobby
@@ -245,7 +245,7 @@ function getUserData(id) {
 1. **Clone the repository**
    ```bash
    git clone https://github.com/AymaanPathan/dev-buddy.git
-   cd codebridge
+   cd DevBuddy
    ```
 
 2. **Install Frontend Dependencies**
@@ -300,7 +300,7 @@ function getUserData(id) {
 
 ### Creating a Room
 
-1. Open CodeBridge in your browser
+1. Open Dev Buddy in your browser
 2. Enter your name
 3. Select your preferred language from the dropdown
 4. Click **"Create Room"**
@@ -317,7 +317,7 @@ function getUserData(id) {
 
 ### Writing Translatable Comments
 
-CodeBridge automatically detects and translates:
+Dev Buddy automatically detects and translates:
 
 **Single-line comments:**
 ```javascript
