@@ -4,7 +4,7 @@ import { RoomModel } from "../../schema/Room.model";
 import { UserModel } from "../../schema/User.model";
 
 export const createRoom = async (req: Request, res: Response) => {
-  const { name, language, clientId, programmingLanguage } = req.body;
+  const { name, language, clientId } = req.body;
   if (!name || !language || !clientId)
     return res.status(400).json({ error: "name, language, clientId required" });
 
@@ -15,13 +15,12 @@ export const createRoom = async (req: Request, res: Response) => {
     createdBy: name,
     language,
     currentCode: "",
-    programmingLanguage,
     users: [{ clientId, name, language, socketId: "", isActive: false }],
   });
 
   await UserModel.updateOne(
     { clientId },
-    { clientId, name, language, programmingLanguage, currentRoomId: roomId },
+    { clientId, name, language, currentRoomId: roomId },
     { upsert: true }
   );
 
