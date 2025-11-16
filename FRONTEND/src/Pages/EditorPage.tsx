@@ -45,6 +45,7 @@ import {
 import { extractComments, type Comment } from "../utils/commentDetector";
 import { Header } from "../components/EditorPageComponents/Header";
 import { Sidebar } from "../components/EditorPageComponents/Sidebar";
+import { setComments } from "../store/slice/commentSlice";
 
 interface Cursor {
   socketId: string;
@@ -81,7 +82,7 @@ const EditorPage = () => {
     ActiveTranslation[]
   >([]);
 
-  // --- Socket Initialization ---
+  // Socket Initialization
   useEffect(() => {
     const socket = connectSocket();
     if (!socket) return;
@@ -123,7 +124,7 @@ const EditorPage = () => {
     );
 
     const handleUsers = (list: any[]) => {
-      const mapped = list.map((u, idx) => ({
+      const mapped = list.map((u) => ({
         ...u,
         socketId: u.socketId || `client-${u.clientId}`,
       }));
@@ -136,6 +137,7 @@ const EditorPage = () => {
       isUpdatingFromSocket.current = true;
       setCode(initial || "// Start coding together...\n");
     });
+
     onCodeUpdate((data) => {
       isUpdatingFromSocket.current = true;
       setCode(typeof data === "string" ? data : data.code);
@@ -151,7 +153,7 @@ const EditorPage = () => {
     };
   }, [roomId, user, dispatch, navigate]);
 
-  // --- Handle cursor updates ---
+  // Handle cursor updates
   const handleCursorChange = (e: any) => {
     if (isUpdatingFromSocket.current || !roomId || !user) return;
     emitCursorMove(roomId, {
@@ -160,7 +162,7 @@ const EditorPage = () => {
     });
   };
 
-  // --- Handle code changes ---
+  // Handle code changes
   const handleCodeChange = (value: string | undefined) => {
     if (!value || isUpdatingFromSocket.current) {
       isUpdatingFromSocket.current = false;
@@ -170,56 +172,38 @@ const EditorPage = () => {
     setCode(value);
     localStorage.setItem(`lingo_code_${roomId}`, value);
 
-    if (roomId && user) emitCodeChange(roomId, value);
+    if (roomId && user) emitCodeChange(roomId, value, user.language);
     autoTranslateComments(value);
   };
 
   const autoTranslateComments = (currentCode: string) => {
     if (translationTimeoutRef.current)
       clearTimeout(translationTimeoutRef.current);
+
     translationTimeoutRef.current = setTimeout(() => {
       const comments = extractComments(
         currentCode,
         user?.language || "javascript"
       );
       lastCommentsRef.current = comments;
+
+      console.log("📝 Extracted comments:", comments);
+
       if (comments.length === 0) {
         dispatch(clearTranslations());
         return;
       }
+
       const commentTexts = comments.map((c) => c.text);
-      if (roomId) emitTranslateBatch(commentTexts, roomId);
+      const commentLines = comments.map((c) => c.line); // ✅ Get lines
+
+      if (roomId) {
+        emitTranslateBatch(commentTexts, roomId, commentLines); // ✅ Pass lines
+      }
     }, 1000);
   };
 
-  const handleNewComment = (text: string, line: number) => {
-    const socket = getSocket();
-    if (!socket || !user || !roomId) return;
-    socket.emit("new-comment", { text, line, senderId: user.clientId, roomId });
-  };
-
-  // --- Listen for comments ---
-  useEffect(() => {
-    const socket = getSocket();
-    if (!socket) return;
-
-    socket.on("comment:new", (payload) => {
-      const { text, line, senderId } = payload;
-      lastCommentsRef.current[line] = { text, line, senderId };
-    });
-
-    socket.on("comment:translated", (payload) => {
-      const { text: translatedText, line, originalText } = payload;
-      dispatch(updateTranslation({ line, text: translatedText, originalText }));
-    });
-
-    return () => {
-      socket.off("comment:new");
-      socket.off("comment:translated");
-    };
-  }, [dispatch]);
-
-  // --- Translation batch listeners ---
+  // Translation batch listeners
   useEffect(() => {
     onTranslateStart(() => {
       setIsTranslating(true);
@@ -227,16 +211,27 @@ const EditorPage = () => {
     });
 
     onTranslateChunk((data) => {
+      console.log("📨 Translate Chunk Data:", data);
+      console.log("👤 Current user clientId:", user?.clientId);
+      console.log("📍 Current comments ref:", lastCommentsRef.current);
+
       setTranslationProgress(data.progress);
-      if (data.success && lastCommentsRef.current[data.index]) {
-        const comment = lastCommentsRef.current[data.index];
+
+      // ✅ Now we have the line directly from server!
+      if (data.line >= 0) {
+        console.log("✅ Dispatching translation with line:", data.line);
+
         dispatch(
           updateTranslation({
-            line: comment.line,
+            line: data.line,
             text: data.translatedText,
-            originalText: comment.text,
+            originalText: data.originalText,
+            senderClientId: data.senderClientId,
+            receiverClientId: data.receiverClientId,
           })
         );
+      } else {
+        console.warn("⚠️ Received translation without line number:", data);
       }
     });
 
@@ -252,17 +247,28 @@ const EditorPage = () => {
     });
 
     return () => removeTranslationListeners();
-  }, [dispatch]);
+  }, [dispatch, user]);
 
-  // --- Compute active translations safely in state ---
+  // Compute active translations
   useEffect(() => {
-    const updated = lastCommentsRef.current.map((comment) => ({
-      line: comment.line,
-      text: comment.text,
-      translation: translations[comment.line] || "",
-    }));
-    setActiveTranslations(updated.filter((t) => t.translation));
+    console.log("🔄 Translations state updated:", translations);
+
+    const updated = Object.values(translations)
+      .filter((t) => t.line !== undefined && t.line >= 0)
+      .map((t) => ({
+        line: t.line,
+        text: t.originalText,
+        translation: t.text,
+      }));
+
+    console.log("✅ Active translations computed:", updated);
+    setActiveTranslations(updated);
   }, [translations]);
+
+  // Debug active translations
+  useEffect(() => {
+    console.log("🎯 Active translations displayed:", activeTranslations);
+  }, [activeTranslations]);
 
   return (
     <div className="h-screen bg-[#191919] flex flex-col">

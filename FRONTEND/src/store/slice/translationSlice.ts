@@ -6,6 +6,29 @@ import {
 } from "../../api/rooms/translate/getBatchTranslate.api";
 import { getTranslationHistoryApi } from "../../api/rooms/translate/getTranslationHistory.api";
 
+interface TranslationState {
+  translations: Record<
+    string,
+    {
+      text: string;
+      originalText: string;
+      senderClientId?: string;
+      receiverClientId?: string; // ✅ Added
+      line: number; // ✅ Added (required)
+    }
+  >;
+  history: any[];
+  loading: boolean;
+  error?: string | null;
+}
+
+const initialState: TranslationState = {
+  translations: {},
+  history: [],
+  loading: false,
+  error: null,
+};
+
 // ----------------- Thunks -----------------
 
 export const translateBatch = createAsyncThunk<
@@ -34,7 +57,7 @@ export const translateBatch = createAsyncThunk<
 );
 
 export const getTranslationHistory = createAsyncThunk<
-  any, // Changed to any since API returns {success, translations}
+  any,
   { roomId: string; clientId: string },
   { rejectValue: { error: string } }
 >(
@@ -42,18 +65,8 @@ export const getTranslationHistory = createAsyncThunk<
   async ({ roomId, clientId }, { rejectWithValue }) => {
     try {
       const data = await getTranslationHistoryApi(roomId, clientId);
-      console.log("📥 Translation history API response:", data);
-      console.log(
-        "📥 Response type:",
-        typeof data,
-        "Is array:",
-        Array.isArray(data)
-      );
-
-      // Return the translations array from the response
       return data.translations || data;
     } catch (err: any) {
-      console.error("❌ Translation history API error:", err);
       return rejectWithValue({
         error: err.response?.data || "Failed to fetch translation history",
       });
@@ -63,45 +76,44 @@ export const getTranslationHistory = createAsyncThunk<
 
 // ----------------- Slice -----------------
 
-interface TranslationState {
-  translations: Record<number, string>; // Changed from Map to Record (plain object)
-  history: any[];
-  loading: boolean;
-  error?: string | null;
-}
-
-const initialState: TranslationState = {
-  translations: {}, // Changed from new Map() to {}
-  history: [],
-  loading: false,
-  error: null,
-};
-
 const translationSlice = createSlice({
   name: "translation",
   initialState,
   reducers: {
-    setTranslations: (state, action) => {
-      state.translations = action.payload;
-    },
-
     updateTranslation: (state, action) => {
-      // Use plain object assignment instead of Map.set()
-      state.translations[action.payload.line] = action.payload.text;
-    },
+      const { text, originalText, senderClientId, receiverClientId, line } =
+        action.payload;
 
+      // ✅ Skip if no valid line
+      if (line === undefined || line < 0) {
+        console.warn(
+          "⚠️ Skipping translation without valid line:",
+          action.payload
+        );
+        return;
+      }
+
+      // ✅ Use receiverClientId for the key (each user stores their own translations)
+      const key = `${receiverClientId || "local"}-${line}-${originalText}`;
+
+      console.log("✅ Storing translation:", { key, text, originalText, line });
+
+      state.translations[key] = {
+        text,
+        originalText,
+        senderClientId,
+        receiverClientId,
+        line,
+      };
+    },
     clearTranslations: (state) => {
-      // Reset to empty object instead of calling Map.clear()
       state.translations = {};
     },
-
     setTranslationHistory: (state, action) => {
       state.history = action.payload;
     },
   },
-
   extraReducers: (builder) => {
-    // translateBatch
     builder
       .addCase(translateBatch.pending, (state) => {
         state.loading = true;
@@ -109,74 +121,32 @@ const translationSlice = createSlice({
       })
       .addCase(translateBatch.fulfilled, (state, action) => {
         state.loading = false;
-
-        // Convert array to plain object instead of Map
-        const translations: Record<number, string> = {};
         action.payload.forEach((item) => {
-          translations[item.line] = item.text;
+          const key = `local-${item.originalText}`;
+          state.translations[key] = {
+            text: item.text,
+            originalText: item.originalText,
+          };
         });
-
-        state.translations = translations;
       })
       .addCase(translateBatch.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload?.error || "Failed to translate batch";
-      });
-
-    // getTranslationHistory
-    builder
-      .addCase(getTranslationHistory.pending, (state) => {
-        state.loading = true;
-        state.error = null;
       })
       .addCase(getTranslationHistory.fulfilled, (state, action) => {
-        state.loading = false;
-
-        console.log("✅ Processing translation history:", action.payload);
-
-        // Check if payload exists and is an array
-        if (!action.payload || !Array.isArray(action.payload)) {
-          console.warn("No valid translation history data received");
-          state.translations = {};
-          state.history = [];
-          return;
-        }
-
-        // Store the raw history
         state.history = action.payload;
-
-        // The API returns objects with originalText and translatedText
-        // We need to convert this to line-based translations
-        // Since we don't have line numbers in the API response,
-        // we'll create a mapping based on the originalText as a hash
-        const translations: Record<number, string> = {};
-
-        action.payload.forEach((item: any, index: number) => {
-          // Use index as the line number temporarily
-          // You might want to add line number to your API response
-          if (item.translatedText) {
-            translations[index] = item.translatedText;
-          }
+        action.payload.forEach((item: any) => {
+          const key = `${item.senderId || "local"}-${item.originalText}`;
+          state.translations[key] = {
+            text: item.translatedText,
+            originalText: item.originalText,
+            senderId: item.senderId,
+          };
         });
-
-        state.translations = translations;
-        console.log("📝 Translations stored:", translations);
-      })
-      .addCase(getTranslationHistory.rejected, (state, action) => {
-        state.loading = false;
-        state.error =
-          action.payload?.error || "Failed to fetch translation history";
       });
   },
 });
 
-// ----------------- Exports -----------------
-
-export const {
-  setTranslations,
-  updateTranslation,
-  clearTranslations,
-  setTranslationHistory,
-} = translationSlice.actions;
-
+export const { updateTranslation, clearTranslations, setTranslationHistory } =
+  translationSlice.actions;
 export default translationSlice.reducer;

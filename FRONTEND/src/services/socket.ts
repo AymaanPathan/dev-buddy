@@ -126,12 +126,14 @@ export const removeAllListeners = () => {
   socket?.removeAllListeners();
 };
 export const getSocketId = () => socket?.id;
-
-export const emitTranslateBatch = (texts: string[], roomId: string) => {
+export const emitTranslateBatch = (
+  texts: string[],
+  roomId: string,
+  lines?: number[]
+) => {
   const socket = getSocket();
   if (!socket) return;
 
-  // Get clientId from saved user
   const savedUser = localStorage.getItem("lingo_user");
   const clientId = savedUser ? JSON.parse(savedUser).clientId : undefined;
 
@@ -140,7 +142,12 @@ export const emitTranslateBatch = (texts: string[], roomId: string) => {
     return;
   }
 
-  socket.emit("translate:batch", { texts, roomId, clientId });
+  socket.emit("translate:batch", {
+    texts,
+    roomId,
+    clientId,
+    lines, // ✅ Added
+  });
 };
 export const onTranslateStart = (
   callback: (data: { total: number }) => void
@@ -150,11 +157,15 @@ export const onTranslateStart = (
 
 export const onTranslateChunk = (
   callback: (data: {
+    senderClientId: string; // ✅ Changed from senderId
+    receiverClientId: string; // ✅ Added
     index: number;
+    line: number; // ✅ Added
     originalText: string;
     translatedText: string;
     success: boolean;
     progress: number;
+    fromCache?: boolean;
     error?: string;
   }) => void
 ) => {
