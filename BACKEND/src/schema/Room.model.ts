@@ -29,7 +29,7 @@
     {
       roomId: { type: String, required: true, index: true },
       createdBy: { type: String },
-      currentCode: { type: String, default: "// Start coding together...\n" },
+      currentCode: { type: String, default: "" },
       language: { type: String, default: "javascript" },
       users: { type: [RoomUserSchema], default: [] },
     },

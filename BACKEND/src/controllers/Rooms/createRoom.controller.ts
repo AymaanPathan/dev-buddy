@@ -14,7 +14,7 @@ export const createRoom = async (req: Request, res: Response) => {
     roomId,
     createdBy: name,
     language,
-    currentCode: "// Start coding together...\n",
+    currentCode: "",
     users: [{ clientId, name, language, socketId: "", isActive: false }],
   });
 

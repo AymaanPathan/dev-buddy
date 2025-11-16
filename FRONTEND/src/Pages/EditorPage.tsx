@@ -69,7 +69,7 @@ const EditorPage = () => {
     (state: RootState) => state.translation.translations
   );
 
-  const [code, setCode] = useState("// Start coding together...\n");
+  const [code, setCode] = useState("");
   const editorRef = useRef<any>(null);
   const isUpdatingFromSocket = useRef(false);
   const lastCommentsRef = useRef<Comment[]>([]);
@@ -135,7 +135,7 @@ const EditorPage = () => {
 
     onInitialCode((initial) => {
       isUpdatingFromSocket.current = true;
-      setCode(initial || "// Start coding together...\n");
+      setCode(initial || "");
     });
 
     onCodeUpdate((data) => {
